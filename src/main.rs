@@ -1,3 +1,7 @@
-fn main() {
-    println!("Hello, world!");
+use std::io::stdin;
+
+mod lisp;
+
+fn main() -> lisp::Result<()> {
+    lisp::repl(lisp::Env::new(), stdin())
 }
