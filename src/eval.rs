@@ -101,14 +101,14 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
                     let args = evlis(env, args)?;
                     let func = eval(env, func)?;
                     apply(env, func, args)?
-                },
+                }
             };
             Ok(res)
         }
         Expr::Cons(_, _) => {
             let func = eval(env, func)?;
             apply(env, func, args)
-        },
+        }
         Expr::Function(function) => function.apply(env, args),
         _ => Err(Error(format!("invalid function: {}", func))),
     }
@@ -119,16 +119,17 @@ mod tests {
     use super::*;
     use crate::reader;
 
-    fn assert_eval_with_env(env: &mut Env, sexpr: &str, expr: Rc<Expr>) {
-        let input = reader::Reader::new(sexpr.bytes()).read().unwrap().unwrap();
-        dbg!(input.clone());
-        assert_eq!(eval(env, input).unwrap(), expr);
+    fn assert_eval_with_env(mut env: Env, sexpr: &str, expr: Rc<Expr>) {
+        let mut r = reader::Reader::new(sexpr.bytes());
+        let mut output = nil();
+        while let Some(x) = r.read().unwrap() {
+            output = eval(&mut env, x).unwrap();
+        }
+        assert_eq!(output, expr);
     }
 
     fn assert_eval(sexpr: &str, expr: Rc<Expr>) {
-        let input = reader::Reader::new(sexpr.bytes()).read().unwrap().unwrap();
-        dbg!(input.clone());
-        assert_eq!(eval(&mut Env::new(), input).unwrap(), expr);
+        assert_eval_with_env(Env::new(), sexpr, expr);
     }
 
     #[test]
@@ -157,7 +158,7 @@ mod tests {
 
         let mut env = Env::new();
         env.insert(symbol("x"), number(10));
-        assert_eval_with_env(&mut env, "(eq x 10)", t());
+        assert_eval_with_env(env, "(eq x 10)", t());
     }
 
     #[test]
@@ -166,18 +167,12 @@ mod tests {
             "((lambda (a b) (cons a b)) 1 2)",
             cons(number(1), number(2)),
         );
-        assert_eval(
-            "((lambda (a) ((lambda (b) b) a)) 'x)",
-            symbol("x"),
-        );
+        assert_eval("((lambda (a) ((lambda (b) b) a)) 'x)", symbol("x"));
     }
 
     #[test]
     fn test_eval_let() {
-        assert_eval(
-            "(let ((a 1) (b 2)) (cons 1 2))",
-            cons(number(1), number(2)),
-        );
+        assert_eval("(let ((a 1) (b 2)) (cons 1 2))", cons(number(1), number(2)));
     }
 
     #[test]
@@ -194,10 +189,7 @@ mod tests {
             "(let ((f (let ((x 1)) (lambda (y) (+ x y))))) (f 10))",
             number(11),
         );
-        assert_eval(
-            "((let ((x 1)) (lambda (y) (+ x y))) 10)",
-            number(11),
-        );
+        assert_eval("((let ((x 1)) (lambda (y) (+ x y))) 10)", number(11));
     }
 
     #[test]
