@@ -47,6 +47,18 @@ fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     eval(&mut new_env, car(cdr(xs)?)?)
 }
 
+fn evdefun(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+    // (defun f (x y) (cons x y))
+    let f = function(Function::new(
+        env,
+        car(cdr(xs.clone())?)?,
+        cdr(cdr(xs.clone())?)?,
+    ));
+    let name = car(xs.clone())?;
+    env.insert(name, f.clone());
+    Ok(f)
+}
+
 fn map_number(x: Rc<Expr>) -> Result<i64> {
     match x.as_ref() {
         Expr::Number(x) => Ok(*x),
@@ -89,6 +101,7 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
                 "lambda" => function(Function::new(env, car(args.clone())?, cdr(args.clone())?)),
+                "defun" => evdefun(env, args)?,
                 "+" => ev_number_op(env, |a, b| a + b, 0, args)?,
                 "-" => ev_number_op(env, |a, b| a - b, 0, args)?,
                 "*" => ev_number_op(env, |a, b| a * b, 1, args)?,
@@ -193,13 +206,13 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_fib() {
+    fn test_eval_defun() {
         assert_eval(
             r"
-(let ((fib (lambda (fib n)
-             (cond ((< n 2) n)
-                   (t (+ (fib fib (- n 1)) (fib fib (- n 2))))))))
-  (fib fib 10))
+(defun fib (n)
+  (cond ((< n 2) n)
+        (t (+ (fib (- n 1)) (fib (- n 2))))))
+(fib 10)
 ",
             number(55),
         );
