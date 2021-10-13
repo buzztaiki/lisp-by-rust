@@ -15,7 +15,7 @@ pub enum Expr {
     Cons(Rc<Expr>, Rc<Expr>),
     Symbol(String),
     Number(i64),
-    Function(Function),
+    Function(Rc<Function>),
 }
 
 #[derive(Debug)]
@@ -112,20 +112,20 @@ impl fmt::Display for Expr {
 }
 
 impl Function {
-    pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
+    pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
         Self {
             env,
             argnames,
             body,
-        }
+        }.into()
     }
 
-    pub fn apply(&self, env: &mut Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
+    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         let mut new_env = self.env.new_scope();
         for (k, v) in self.argnames.clone().iter().zip(eval::evlis(env, args)?.iter()) {
             new_env.insert(k?, v?);
         }
-        eval::eval(&mut new_env, self.body.car()?)
+        eval::eval(&mut new_env, self.body.car()?.as_ref())
     }
 }
 
@@ -155,8 +155,8 @@ pub fn number(x: i64) -> Rc<Expr> {
     Rc::new(Expr::Number(x))
 }
 
-pub fn function(x: Function) -> Rc<Expr> {
-    Rc::new(Expr::Function(x))
+pub fn function(x: Rc<Function>) -> Rc<Expr> {
+    Rc::new(Expr::Function(x.clone()))
 }
 
 pub fn nil() -> Rc<Expr> {

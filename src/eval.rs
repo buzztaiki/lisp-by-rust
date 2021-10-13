@@ -3,66 +3,67 @@ use std::rc::Rc;
 use crate::env::Env;
 use crate::lisp::*;
 
-pub fn eval(env: &mut Env, x: Rc<Expr>) -> Result<Rc<Expr>> {
-    match x.as_ref() {
-        Expr::Cons(car, cdr) => apply(env, car.clone(), cdr.clone()),
-        Expr::Symbol(v) if v == NIL || v == T => Ok(x),
+pub fn eval(env: &mut Env, x: &Expr) -> Result<Rc<Expr>> {
+    match x {
+        Expr::Cons(car, cdr) => apply(env, car, cdr),
+        Expr::Symbol(v) if v == NIL => Ok(nil()),
+        Expr::Symbol(v) if v == T => Ok(t()),
         Expr::Symbol(_) => env
             .get(&x)
             .ok_or_else(|| Error(format!("symbol not found: {}", x))),
-        Expr::Number(_) => Ok(x),
-        Expr::Function(_) => Ok(x),
+        Expr::Number(v) => Ok(number(*v)),
+        Expr::Function(f) => Ok(function(f.clone())),
     }
 }
 
-pub fn evlis(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
-    if xs == nil() {
-        Ok(xs)
+pub fn evlis(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
+    if xs.is_nil() {
+        Ok(nil())
     } else {
-        Ok(cons(eval(env, xs.car()?)?, evlis(env, xs.cdr()?)?))
+        Ok(cons(eval(env, xs.car()?.as_ref())?, evlis(env, xs.cdr()?.as_ref())?))
     }
 }
 
-fn evcon(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+fn evcon(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     // (cond ((eq x y) 'ok) (t 'ng))
-    if xs == nil() {
-        Ok(xs)
+    if xs.is_nil() {
+        Ok(nil())
     } else {
         let x = xs.car()?;
-        if eval(env, x.car()?)? != nil() {
-            eval(env, x.cdr()?.car()?)
+        if !eval(env, x.car()?.as_ref())?.is_nil() {
+            eval(env, x.cdr()?.car()?.as_ref())
         } else {
-            evcon(env, xs.cdr()?)
+            evcon(env, xs.cdr()?.as_ref())
         }
     }
 }
 
-fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+fn evlet(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
     let mut new_env = env.new_scope();
     for x in xs.car()?.iter() {
         let x = x?;
-        new_env.insert(x.car()?, eval(env, x.cdr()?.car()?)?);
+        new_env.insert(x.car()?, eval(env, x.cdr()?.car()?.as_ref())?);
     }
-    eval(&mut new_env, xs.cdr()?.car()?)
+    eval(&mut new_env, xs.cdr()?.car()?.as_ref())
 }
 
-fn evlambda(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+fn evlambda(env: &Env, xs: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
     let f = function(Function::new(env.new_scope(), xs.car()?, xs.cdr()?));
     Ok(f)
 }
 
-fn evdefun(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+fn evdefun(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
     let name = xs.car()?;
-    let f = evlambda(env, xs.cdr()?)?;
+    let f = evlambda(env, xs.cdr()?.as_ref())?;
     env.insert(name, f.clone());
     Ok(f)
 }
 
-fn map_number(x: Rc<Expr>) -> Result<i64> {
-    match x.as_ref() {
+fn map_number(x: &Expr) -> Result<i64> {
+    match x {
         Expr::Number(x) => Ok(*x),
         _ => Err(Error(format!("invalid number: {}", x))),
     }
@@ -72,34 +73,34 @@ fn ev_number_op(
     env: &mut Env,
     f: impl Fn(i64, i64) -> i64,
     init: i64,
-    xs: Rc<Expr>,
+    xs: &Expr,
 ) -> Result<Rc<Expr>> {
-    let xs = evlis(env, xs)?
+    let xs = evlis(env, &xs)?
         .iter()
-        .map(|x| x.and_then(map_number))
+        .map(|x| x.and_then(|x| map_number(&x)))
         .collect::<Result<Vec<_>>>()?;
     Ok(number(xs.iter().copied().reduce(f).unwrap_or(init)))
 }
 
-fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: Rc<Expr>) -> Result<Rc<Expr>> {
-    let xs = evlis(env, xs)?
+fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: &Expr) -> Result<Rc<Expr>> {
+    let xs = evlis(env, &xs)?
         .iter()
-        .map(|x| x.and_then(map_number))
+        .map(|x| x.and_then(|x| map_number(&x)))
         .collect::<Result<Vec<_>>>()?;
     Ok(Expr::from_bool(xs.windows(2).all(|x| f(x[0], x[1]))))
 }
 
-pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> {
-    match func.as_ref() {
+pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
+    match func {
         Expr::Symbol(fname) => {
             let res = match fname.as_str() {
-                "cons" => cons(eval(env, args.car()?)?, eval(env, args.cdr()?.car()?)?),
-                "car" => eval(env, args.car()?)?.car()?,
-                "cdr" => eval(env, args.car()?)?.cdr()?,
+                "cons" => cons(eval(env, args.car()?.as_ref())?, eval(env, args.cdr()?.car()?.as_ref())?),
+                "car" => eval(env, args.car()?.as_ref())?.car()?,
+                "cdr" => eval(env, args.car()?.as_ref())?.cdr()?,
                 "quote" => args.car()?,
                 "atom" => Expr::from_bool(args.car()?.is_atom()),
                 "eq" => Expr::from_bool(
-                    eval(env, args.car()?)?.lisp_eq(eval(env, args.cdr()?.car()?)?.as_ref()),
+                    eval(env, args.car()?.as_ref())?.lisp_eq(eval(env, args.cdr()?.car()?.as_ref())?.as_ref()),
                 ),
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
@@ -116,14 +117,14 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
                 _ => {
                     let args = evlis(env, args)?;
                     let func = eval(env, func)?;
-                    apply(env, func, args)?
+                    apply(env, &func, &args)?
                 }
             };
             Ok(res)
         }
         Expr::Cons(_, _) => {
             let func = eval(env, func)?;
-            apply(env, func, args)
+            apply(env, &func, args)
         }
         Expr::Function(function) => function.apply(env, args),
         _ => Err(Error(format!("invalid function: {}", func))),
@@ -139,7 +140,7 @@ mod tests {
         let mut r = reader::Reader::new(sexpr.bytes());
         let mut output = nil();
         while let Some(x) = r.read().unwrap() {
-            output = eval(&mut env, x).unwrap();
+            output = eval(&mut env, &x).unwrap();
         }
         assert_eq!(output, expr);
     }
