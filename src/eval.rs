@@ -6,8 +6,6 @@ use crate::lisp::*;
 pub fn eval(env: &mut Env, x: &Expr) -> Result<Rc<Expr>> {
     match x {
         Expr::Cons(car, cdr) => apply(env, car, cdr),
-        Expr::Symbol(v) if v == NIL => Ok(nil()),
-        Expr::Symbol(v) if v == T => Ok(t()),
         Expr::Symbol(_) => env
             .get(x)
             .ok_or_else(|| Error(format!("symbol not found: {}", x))),
@@ -131,6 +129,13 @@ pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     }
 }
 
+pub fn global_env() -> Env {
+    let mut env = Env::new();
+    env.insert(nil(), nil());
+    env.insert(t(), t());
+    env
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,7 +151,7 @@ mod tests {
     }
 
     fn assert_eval(sexpr: &str, expr: Rc<Expr>) {
-        assert_eval_with_env(Env::new(), sexpr, expr);
+        assert_eval_with_env(global_env(), sexpr, expr);
     }
 
     #[test]
@@ -173,7 +178,7 @@ mod tests {
     fn test_eval_eq() {
         assert_eval("(eq 10 10)", t());
 
-        let mut env = Env::new();
+        let mut env = global_env();
         env.insert(symbol("x"), number(10));
         assert_eval_with_env(env, "(eq x 10)", t());
     }
