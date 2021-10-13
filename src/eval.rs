@@ -6,7 +6,7 @@ use crate::lisp::*;
 pub fn eval(env: &mut Env, x: Rc<Expr>) -> Result<Rc<Expr>> {
     match x.as_ref() {
         Expr::Cons(car, cdr) => apply(env, car.clone(), cdr.clone()),
-        Expr::Symbol(_) if x == nil() || x == t() => Ok(x),
+        Expr::Symbol(v) if v == NIL || v == T => Ok(x),
         Expr::Symbol(_) => env
             .get(&x)
             .ok_or_else(|| Error(format!("symbol not found: {}", x))),

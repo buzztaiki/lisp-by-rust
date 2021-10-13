@@ -25,6 +25,9 @@ pub struct Function {
     body: Rc<Expr>,
 }
 
+pub const NIL: &str = "nil";
+pub const T: &str = "t";
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -98,11 +101,11 @@ pub fn function(x: Function) -> Rc<Expr> {
 }
 
 pub fn nil() -> Rc<Expr> {
-    symbol("nil")
+    symbol(NIL)
 }
 
 pub fn t() -> Rc<Expr> {
-    symbol("t")
+    symbol(T)
 }
 
 pub fn cons_list(xs: &[Rc<Expr>], tail: Rc<Expr>) -> Rc<Expr> {
@@ -120,7 +123,7 @@ pub fn list(xs: &[Rc<Expr>]) -> Rc<Expr> {
 pub fn car(x: Rc<Expr>) -> Result<Rc<Expr>> {
     match x.as_ref() {
         Expr::Cons(car, _) => Ok(car.clone()),
-        Expr::Symbol(_) if x == nil() => Ok(x),
+        Expr::Symbol(v) if v == NIL => Ok(x),
         _ => Err(Error(format!("expect list: {}", x))),
     }
 }
@@ -128,7 +131,7 @@ pub fn car(x: Rc<Expr>) -> Result<Rc<Expr>> {
 pub fn cdr(x: Rc<Expr>) -> Result<Rc<Expr>> {
     match x.as_ref() {
         Expr::Cons(_, cdr) => Ok(cdr.clone()),
-        Expr::Symbol(_) if x == nil() => Ok(x),
+        Expr::Symbol(v) if v == NIL => Ok(x),
         _ => Err(Error(format!("expect list: {}", x))),
     }
 }
