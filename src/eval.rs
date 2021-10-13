@@ -42,19 +42,21 @@ fn evlet(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     let mut new_env = env.clone();
     for x in iter(car(xs.clone())?) {
         let x = x?;
-        new_env.insert(
-            car(x.clone())?,
-            eval(env, car(cdr(x)?)?)?,
-        );
+        new_env.insert(car(x.clone())?, eval(env, car(cdr(x)?)?)?);
     }
     eval(&new_env, car(cdr(xs)?)?)
 }
 
-fn number_op(f: impl FnOnce(i64, i64) -> i64, args: Rc<Expr>) -> Result<Rc<Expr>> {
-    match (car(args.clone())?.as_ref(), car(cdr(args)?)?.as_ref()) {
-        (Expr::Number(x), Expr::Number(y)) => Ok(number(f(*x, *y))),
-        (x, y) => Err(Error(format!("invalid number: {}, {}", x, y))),
-    }
+fn ev_number_op(env: &Env, f: impl Fn(i64, i64) -> i64, init: i64, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+    let map_number = |x: Rc<Expr>| match x.as_ref() {
+        Expr::Number(x) => Ok(*x),
+        _ => Err(Error(format!("invalid number: {}", x))),
+    };
+
+    let xs = iter(evlis(env, xs)?)
+        .map(|x| x.and_then(map_number))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(number(xs.iter().copied().reduce(f).unwrap_or(init)))
 }
 
 fn number_cmp(f: impl FnOnce(i64, i64) -> bool, args: Rc<Expr>) -> Result<Rc<Expr>> {
@@ -80,10 +82,10 @@ pub fn apply(env: &Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> {
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
                 "lambda" => function(Function::new(env, car(args.clone())?, cdr(args.clone())?)),
-                "+" => number_op(|x, y| x + y, evlis(env, args)?)?,
-                "-" => number_op(|x, y| x - y, evlis(env, args)?)?,
-                "*" => number_op(|x, y| x * y, evlis(env, args)?)?,
-                "/" => number_op(|x, y| x / y, evlis(env, args)?)?,
+                "+" => ev_number_op(env, |a, b| a + b, 0, args)?,
+                "-" => ev_number_op(env, |a, b| a - b, 0, args)?,
+                "*" => ev_number_op(env, |a, b| a * b, 1, args)?,
+                "/" => ev_number_op(env, |a, b| a / b, 0, args)?,
                 "<" => number_cmp(|x, y| x < y, evlis(env, args)?)?,
                 "<=" => number_cmp(|x, y| x <= y, evlis(env, args)?)?,
                 ">" => number_cmp(|x, y| x > y, evlis(env, args)?)?,
