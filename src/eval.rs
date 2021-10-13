@@ -60,11 +60,13 @@ fn evdefun(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     Ok(f)
 }
 
-fn map_number(x: &Expr) -> Result<i64> {
-    match x {
-        Expr::Number(x) => Ok(*x),
-        _ => Err(Error(format!("invalid number: {}", x))),
-    }
+fn map_number(xs: Rc<Expr>) -> impl Iterator<Item = Result<i64>> {
+    xs.iter().map(|x| {
+        x.and_then(|x| match &*x {
+            Expr::Number(x) => Ok(*x),
+            _ => Err(Error(format!("invalid number: {}", x))),
+        })
+    })
 }
 
 fn ev_number_op(
@@ -73,19 +75,18 @@ fn ev_number_op(
     init: i64,
     xs: &Expr,
 ) -> Result<Rc<Expr>> {
-    let xs = evlis(env, xs)?
-        .iter()
-        .map(|x| x.and_then(|x| map_number(&x)))
-        .collect::<Result<Vec<_>>>()?;
-    Ok(number(xs.iter().copied().reduce(f).unwrap_or(init)))
+    let xs = map_number(evlis(env, xs)?);
+    let res = xs.reduce(|a, b| a.and_then(|a| b.map(|b| f(a, b))));
+    res.unwrap_or(Ok(init)).map(number)
 }
 
 fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: &Expr) -> Result<Rc<Expr>> {
-    let xs = evlis(env, xs)?
-        .iter()
-        .map(|x| x.and_then(|x| map_number(&x)))
-        .collect::<Result<Vec<_>>>()?;
-    Ok(Expr::from_bool(xs.windows(2).all(|x| f(x[0], x[1]))))
+    let mut xs = map_number(evlis(env, xs)?);
+    let x = xs
+        .next()
+        .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
+    let res = xs.try_fold(x, |a, b| a.and_then(|a| b.map(|b| f(a, b).then(|| b))).transpose());
+    res.transpose().map(|x| Expr::from_bool(x.is_some()))
 }
 
 pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
@@ -97,9 +98,9 @@ pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
                 "cdr" => eval(env, &*args.car()?)?.cdr()?,
                 "quote" => args.car()?,
                 "atom" => Expr::from_bool(args.car()?.is_atom()),
-                "eq" => Expr::from_bool(
-                    eval(env, &*args.car()?)?.lisp_eq(&*eval(env, &*args.cadr()?)?),
-                ),
+                "eq" => {
+                    Expr::from_bool(eval(env, &*args.car()?)?.lisp_eq(&*eval(env, &*args.cadr()?)?))
+                }
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
                 "lambda" => evlambda(env, args)?,
