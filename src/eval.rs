@@ -19,7 +19,7 @@ pub fn evlis(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     if xs == nil() {
         Ok(xs)
     } else {
-        Ok(cons(eval(env, car(xs.clone())?)?, evlis(env, cdr(xs)?)?))
+        Ok(cons(eval(env, xs.car()?)?, evlis(env, xs.cdr()?)?))
     }
 }
 
@@ -28,11 +28,11 @@ fn evcon(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     if xs == nil() {
         Ok(xs)
     } else {
-        let x = car(xs.clone())?;
-        if eval(env, car(x.clone())?)? != nil() {
-            eval(env, car(cdr(x)?)?)
+        let x = xs.car()?;
+        if eval(env, x.car()?)? != nil() {
+            eval(env, x.cdr()?.car()?)
         } else {
-            evcon(env, cdr(xs)?)
+            evcon(env, xs.cdr()?)
         }
     }
 }
@@ -40,23 +40,23 @@ fn evcon(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
 fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
     let mut new_env = env.new_scope();
-    for x in iter(car(xs.clone())?) {
+    for x in iter(xs.car()?) {
         let x = x?;
-        new_env.insert(car(x.clone())?, eval(env, car(cdr(x)?)?)?);
+        new_env.insert(x.car()?, eval(env, x.cdr()?.car()?)?);
     }
-    eval(&mut new_env, car(cdr(xs)?)?)
+    eval(&mut new_env, xs.cdr()?.car()?)
 }
 
 fn evlambda(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
-    let f = function(Function::new(env.new_scope(), car(xs.clone())?, cdr(xs)?));
+    let f = function(Function::new(env.new_scope(), xs.car()?, xs.cdr()?));
     Ok(f)
 }
 
 fn evdefun(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
-    let name = car(xs.clone())?;
-    let f = evlambda(env, cdr(xs)?)?;
+    let name = xs.car()?;
+    let f = evlambda(env, xs.cdr()?)?;
     env.insert(name, f.clone());
     Ok(f)
 }
@@ -91,14 +91,14 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
     match func.as_ref() {
         Expr::Symbol(fname) => {
             let res = match fname.as_str() {
-                "cons" => cons(eval(env, car(args.clone())?)?, eval(env, car(cdr(args)?)?)?),
-                "car" => car(eval(env, car(args)?)?)?,
-                "cdr" => cdr(eval(env, car(args)?)?)?,
-                "quote" => car(args)?,
-                "atom" => bool_to_expr(atom(car(args)?)),
+                "cons" => cons(eval(env, args.car()?)?, eval(env, args.cdr()?.car()?)?),
+                "car" => eval(env, args.car()?)?.car()?,
+                "cdr" => eval(env, args.car()?)?.cdr()?,
+                "quote" => args.car()?,
+                "atom" => bool_to_expr(atom(args.car()?)),
                 "eq" => bool_to_expr(eq(
-                    eval(env, car(args.clone())?)?,
-                    eval(env, car(cdr(args)?)?)?,
+                    eval(env, args.car()?)?,
+                    eval(env, args.cdr()?.car()?)?,
                 )),
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,

@@ -28,6 +28,25 @@ pub struct Function {
 pub const NIL: &str = "nil";
 pub const T: &str = "t";
 
+impl Expr {
+    pub fn car(&self) -> Result<Rc<Expr>> {
+        match self {
+            Expr::Cons(car, _) => Ok(car.clone()),
+            Expr::Symbol(v) if v == NIL => Ok(nil()),
+            _ => Err(Error(format!("expect list: {}", self))),
+        }
+    }
+
+    pub fn cdr(&self) -> Result<Rc<Expr>> {
+        match self {
+            Expr::Cons(_, cdr) => Ok(cdr.clone()),
+            Expr::Symbol(v) if v == NIL => Ok(nil()),
+            _ => Err(Error(format!("expect list: {}", self))),
+        }
+    }
+
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -35,8 +54,8 @@ impl fmt::Display for Expr {
                 write!(f, "({}", head)?;
                 let mut rest = rest.clone();
                 while consp(rest.clone()) {
-                    write!(f, " {}", car(rest.clone()).map_err(|_| fmt::Error)?)?;
-                    rest = cdr(rest).map_err(|_| fmt::Error)?;
+                    write!(f, " {}", rest.car().map_err(|_| fmt::Error)?)?;
+                    rest = rest.cdr().map_err(|_| fmt::Error)?;
                 }
                 if rest != nil() {
                     write!(f, " . {}", rest)?;
@@ -66,7 +85,7 @@ impl Function {
         for (k, v) in iter(self.argnames.clone()).zip(iter(eval::evlis(env, args)?)) {
             new_env.insert(k?, v?);
         }
-        eval::eval(&mut new_env, car(self.body.clone())?)
+        eval::eval(&mut new_env, self.body.car()?)
     }
 }
 
@@ -120,22 +139,6 @@ pub fn list(xs: &[Rc<Expr>]) -> Rc<Expr> {
     cons_list(xs, nil())
 }
 
-pub fn car(x: Rc<Expr>) -> Result<Rc<Expr>> {
-    match x.as_ref() {
-        Expr::Cons(car, _) => Ok(car.clone()),
-        Expr::Symbol(v) if v == NIL => Ok(x),
-        _ => Err(Error(format!("expect list: {}", x))),
-    }
-}
-
-pub fn cdr(x: Rc<Expr>) -> Result<Rc<Expr>> {
-    match x.as_ref() {
-        Expr::Cons(_, cdr) => Ok(cdr.clone()),
-        Expr::Symbol(v) if v == NIL => Ok(x),
-        _ => Err(Error(format!("expect list: {}", x))),
-    }
-}
-
 pub fn atom(x: Rc<Expr>) -> bool {
     matches!(x.as_ref(), Expr::Symbol(_) | Expr::Number(_))
 }
@@ -170,8 +173,8 @@ pub struct Iter {
 
 impl Iter {
     fn next_item(&mut self) -> Result<Rc<Expr>> {
-        let x = car(self.xs.clone())?;
-        self.xs = cdr(self.xs.clone())?;
+        let x = self.xs.car()?;
+        self.xs = self.xs.cdr()?;
         Ok(x)
     }
 }
@@ -206,22 +209,22 @@ mod tests {
 
     #[test]
     fn test_car() {
-        assert_eq!(car(cons(number(1), number(2))).unwrap(), number(1));
-        assert_eq!(car(nil()).unwrap(), nil());
-        assert!(car(number(1)).is_err());
-        assert!(car(symbol("moo")).is_err());
+        assert_eq!(cons(number(1), number(2)).car().unwrap(), number(1));
+        assert_eq!(nil().car().unwrap(), nil());
+        assert!(number(1).car().is_err());
+        assert!(symbol("moo").car().is_err());
     }
 
     #[test]
     fn test_cdr() {
-        assert_eq!(cdr(cons(number(1), number(2))).unwrap(), number(2));
+        assert_eq!(cons(number(1), number(2)).cdr().unwrap(), number(2));
         assert_eq!(
-            cdr(list(&[number(1), number(2)])).unwrap(),
+            list(&[number(1), number(2)]).cdr().unwrap(),
             list(&[number(2)])
         );
-        assert_eq!(cdr(nil()).unwrap(), nil());
-        assert!(cdr(number(1)).is_err());
-        assert!(cdr(symbol("moo")).is_err());
+        assert_eq!(nil().cdr().unwrap(), nil());
+        assert!(number(1).cdr().is_err());
+        assert!(symbol("moo").cdr().is_err());
     }
 
     #[test]
