@@ -58,7 +58,7 @@ impl<Iter: Iterator<Item = u8>> Reader<Iter> {
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(_) = self.input.next_if(|x| x.is_ascii_whitespace()) {}
+        while self.input.next_if(|x| x.is_ascii_whitespace()).is_some() {}
     }
 
     fn noeof(x: Result<Option<Rc<Expr>>>) -> Result<Rc<Expr>> {

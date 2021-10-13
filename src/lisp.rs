@@ -107,7 +107,7 @@ pub fn t() -> Rc<Expr> {
 
 pub fn cons_list(xs: &[Rc<Expr>], tail: Rc<Expr>) -> Rc<Expr> {
     if let [head, rest @ ..] = xs {
-        cons(head.clone(), cons_list(rest, tail.clone()))
+        cons(head.clone(), cons_list(rest, tail))
     } else {
         tail
     }
@@ -241,7 +241,10 @@ mod tests {
     #[test]
     fn test_iter() {
         let xs = list((0..5).map(number).collect::<Vec<_>>().as_ref());
-        assert_eq!(iter(xs).flatten().collect::<Vec<_>>(), (0..5).map(number).collect::<Vec<_>>());
+        assert_eq!(
+            iter(xs).flatten().collect::<Vec<_>>(),
+            (0..5).map(number).collect::<Vec<_>>()
+        );
 
         let xs = cons(number(1), number(2));
         assert_eq!(iter(xs).flatten().collect::<Vec<_>>(), vec![number(1)]);

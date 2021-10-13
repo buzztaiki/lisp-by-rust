@@ -6,7 +6,7 @@ use crate::lisp::*;
 use crate::reader::Reader;
 
 pub fn repl(mut env: Env, input: impl io::Read) -> Result<()> {
-    let mut reader = Reader::new(input.bytes().flat_map(|x| x));
+    let mut reader = Reader::new(input.bytes().flatten());
 
     loop {
         match reader.read() {

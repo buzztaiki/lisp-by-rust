@@ -49,18 +49,14 @@ fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
 
 fn evlambda(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
-    let f = function(Function::new(
-        env.new_scope(),
-        car(xs.clone())?,
-        cdr(xs.clone())?,
-    ));
+    let f = function(Function::new(env.new_scope(), car(xs.clone())?, cdr(xs)?));
     Ok(f)
 }
 
 fn evdefun(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
     let name = car(xs.clone())?;
-    let f = evlambda(env, cdr(xs.clone())?)?;
+    let f = evlambda(env, cdr(xs)?)?;
     env.insert(name, f.clone());
     Ok(f)
 }
