@@ -40,13 +40,12 @@ fn evcon(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
 fn evlet(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
     let mut new_env = env.clone();
-    let mut vars = car(xs.clone())?;
-    while vars != nil() {
+    for x in iter(car(xs.clone())?) {
+        let x = x?;
         new_env.insert(
-            car(car(vars.clone())?)?,
-            eval(env, car(cdr(car(vars.clone())?)?)?)?,
+            car(x.clone())?,
+            eval(env, car(cdr(x)?)?)?,
         );
-        vars = cdr(vars)?;
     }
     eval(&new_env, car(cdr(xs)?)?)
 }

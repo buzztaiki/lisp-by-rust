@@ -62,8 +62,8 @@ impl Function {
 
     pub fn apply(&self, env: &Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
         let mut new_env = self.env.clone();
-        for (k, v) in pairs(self.argnames.clone(), eval::evlis(env, args)?)? {
-            new_env.insert(k, v);
+        for (k, v) in iter(self.argnames.clone()).zip(iter(eval::evlis(env, args)?)) {
+            new_env.insert(k?, v?);
         }
         eval::eval(&new_env, car(self.body.clone())?)
     }
@@ -154,19 +154,6 @@ pub fn bool_to_expr(x: bool) -> Rc<Expr> {
         t()
     } else {
         nil()
-    }
-}
-
-pub fn pairs(mut xs: Rc<Expr>, mut ys: Rc<Expr>) -> Result<Vec<(Rc<Expr>, Rc<Expr>)>> {
-    let mut res = Vec::new();
-    loop {
-        if xs == nil() {
-            return Ok(res);
-        }
-
-        res.push((car(xs.clone())?, car(ys.clone())?));
-        xs = cdr(xs)?;
-        ys = cdr(ys)?;
     }
 }
 
