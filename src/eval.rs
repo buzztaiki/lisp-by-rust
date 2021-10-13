@@ -47,14 +47,20 @@ fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     eval(&mut new_env, car(cdr(xs)?)?)
 }
 
+fn evlambda(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+    // (lambda (x y) (cons x y))
+    let f = function(Function::new(
+        env.new_scope(),
+        car(xs.clone())?,
+        cdr(xs.clone())?,
+    ));
+    Ok(f)
+}
+
 fn evdefun(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
-    let f = function(Function::new(
-        env,
-        car(cdr(xs.clone())?)?,
-        cdr(cdr(xs.clone())?)?,
-    ));
     let name = car(xs.clone())?;
+    let f = evlambda(env, cdr(xs.clone())?)?;
     env.insert(name, f.clone());
     Ok(f)
 }
@@ -100,7 +106,7 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
                 )),
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
-                "lambda" => function(Function::new(env, car(args.clone())?, cdr(args.clone())?)),
+                "lambda" => evlambda(env, args)?,
                 "defun" => evdefun(env, args)?,
                 "+" => ev_number_op(env, |a, b| a + b, 0, args)?,
                 "-" => ev_number_op(env, |a, b| a - b, 0, args)?,

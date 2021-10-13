@@ -50,9 +50,9 @@ impl fmt::Display for Expr {
 }
 
 impl Function {
-    pub fn new(env: &Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
+    pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
         Self {
-            env: env.new_scope(),
+            env,
             argnames,
             body,
         }
