@@ -206,6 +206,15 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "symbol not found: y")]
+    fn test_eval_closure_uncaptured() {
+        assert_eval(
+            "(let ((f (let ((x 1)) (lambda () (+ x y))))) (let ((y 10)) (f 10)))",
+            number(11),
+        );
+    }
+
+    #[test]
     fn test_eval_defun() {
         assert_eval(
             r"
