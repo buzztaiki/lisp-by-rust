@@ -1,3 +1,5 @@
+use std::env::args;
+use std::fs::File;
 use std::io::stdin;
 
 mod env;
@@ -7,5 +9,10 @@ mod reader;
 mod repl;
 
 fn main() -> lisp::Result<()> {
-    repl::repl(env::Env::new(), stdin())
+    if let Some(fname) = args().skip(1).next() {
+        let f = File::open(fname).map_err(|e| lisp::Error(e.to_string()))?;
+        repl::repl(env::Env::new(), f)
+    } else {
+        repl::repl(env::Env::new(), stdin())
+    }
 }
