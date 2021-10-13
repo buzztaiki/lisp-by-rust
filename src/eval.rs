@@ -20,7 +20,7 @@ pub fn evlis(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     if xs.is_nil() {
         Ok(nil())
     } else {
-        Ok(cons(eval(env, xs.car()?.as_ref())?, evlis(env, xs.cdr()?.as_ref())?))
+        Ok(cons(eval(env, &*xs.car()?)?, evlis(env, &*xs.cdr()?)?))
     }
 }
 
@@ -30,10 +30,10 @@ fn evcon(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
         Ok(nil())
     } else {
         let x = xs.car()?;
-        if !eval(env, x.car()?.as_ref())?.is_nil() {
-            eval(env, x.cdr()?.car()?.as_ref())
+        if !eval(env, &*x.car()?)?.is_nil() {
+            eval(env, &*x.cdr()?.car()?)
         } else {
-            evcon(env, xs.cdr()?.as_ref())
+            evcon(env, &*xs.cdr()?)
         }
     }
 }
@@ -43,9 +43,9 @@ fn evlet(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     let mut new_env = env.new_scope();
     for x in xs.car()?.iter() {
         let x = x?;
-        new_env.insert(x.car()?, eval(env, x.cdr()?.car()?.as_ref())?);
+        new_env.insert(x.car()?, eval(env, &*x.cdr()?.car()?)?);
     }
-    eval(&mut new_env, xs.cdr()?.car()?.as_ref())
+    eval(&mut new_env, &*xs.cdr()?.car()?)
 }
 
 fn evlambda(env: &Env, xs: &Expr) -> Result<Rc<Expr>> {
@@ -57,7 +57,7 @@ fn evlambda(env: &Env, xs: &Expr) -> Result<Rc<Expr>> {
 fn evdefun(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
     let name = xs.car()?;
-    let f = evlambda(env, xs.cdr()?.as_ref())?;
+    let f = evlambda(env, &*xs.cdr()?)?;
     env.insert(name, f.clone());
     Ok(f)
 }
@@ -94,13 +94,13 @@ pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     match func {
         Expr::Symbol(fname) => {
             let res = match fname.as_str() {
-                "cons" => cons(eval(env, args.car()?.as_ref())?, eval(env, args.cdr()?.car()?.as_ref())?),
-                "car" => eval(env, args.car()?.as_ref())?.car()?,
-                "cdr" => eval(env, args.car()?.as_ref())?.cdr()?,
+                "cons" => cons(eval(env, &*args.car()?)?, eval(env, &*args.cdr()?.car()?)?),
+                "car" => eval(env, &*args.car()?)?.car()?,
+                "cdr" => eval(env, &*args.car()?)?.cdr()?,
                 "quote" => args.car()?,
                 "atom" => Expr::from_bool(args.car()?.is_atom()),
                 "eq" => Expr::from_bool(
-                    eval(env, args.car()?.as_ref())?.lisp_eq(eval(env, args.cdr()?.car()?.as_ref())?.as_ref()),
+                    eval(env, &*args.car()?)?.lisp_eq(&*eval(env, &*args.cdr()?.car()?)?),
                 ),
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,

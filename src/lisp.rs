@@ -110,19 +110,19 @@ impl fmt::Display for Expr {
 
 impl Function {
     pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Self {
+        Rc::new(Self {
             env,
             argnames,
             body,
-        }.into()
+        })
     }
 
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         let mut new_env = self.env.new_scope();
-        for (k, v) in self.argnames.clone().iter().zip(eval::evlis(env, args)?.iter()) {
+        for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
             new_env.insert(k?, v?);
         }
-        eval::eval(&mut new_env, self.body.car()?.as_ref())
+        eval::eval(&mut new_env, &*self.body.car()?)
     }
 }
 
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        let xs = list((0..5).map(number).collect::<Vec<_>>().as_ref());
+        let xs = list(&(0..5).map(number).collect::<Vec<_>>());
         assert_eq!(
             xs.iter().flatten().collect::<Vec<_>>(),
             (0..5).map(number).collect::<Vec<_>>()
