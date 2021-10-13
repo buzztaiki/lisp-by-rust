@@ -45,6 +45,10 @@ impl Expr {
         }
     }
 
+    pub fn cadr(&self) -> Result<Rc<Expr>> {
+        self.cdr()?.car()
+    }
+
     pub fn is_nil(&self) -> bool {
         matches!(self, Expr::Symbol(v) if v == NIL)
     }

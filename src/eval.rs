@@ -31,7 +31,7 @@ fn evcon(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     } else {
         let x = xs.car()?;
         if !eval(env, &*x.car()?)?.is_nil() {
-            eval(env, &*x.cdr()?.car()?)
+            eval(env, &*x.cadr()?)
         } else {
             evcon(env, &*xs.cdr()?)
         }
@@ -43,9 +43,9 @@ fn evlet(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     let mut new_env = env.new_scope();
     for x in xs.car()?.iter() {
         let x = x?;
-        new_env.insert(x.car()?, eval(env, &*x.cdr()?.car()?)?);
+        new_env.insert(x.car()?, eval(env, &*x.cadr()?)?);
     }
-    eval(&mut new_env, &*xs.cdr()?.car()?)
+    eval(&mut new_env, &*xs.cadr()?)
 }
 
 fn evlambda(env: &Env, xs: &Expr) -> Result<Rc<Expr>> {
@@ -94,13 +94,13 @@ pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     match func {
         Expr::Symbol(fname) => {
             let res = match fname.as_str() {
-                "cons" => cons(eval(env, &*args.car()?)?, eval(env, &*args.cdr()?.car()?)?),
+                "cons" => cons(eval(env, &*args.car()?)?, eval(env, &*args.cadr()?)?),
                 "car" => eval(env, &*args.car()?)?.car()?,
                 "cdr" => eval(env, &*args.car()?)?.cdr()?,
                 "quote" => args.car()?,
                 "atom" => Expr::from_bool(args.car()?.is_atom()),
                 "eq" => Expr::from_bool(
-                    eval(env, &*args.car()?)?.lisp_eq(&*eval(env, &*args.cdr()?.car()?)?),
+                    eval(env, &*args.car()?)?.lisp_eq(&*eval(env, &*args.cadr()?)?),
                 ),
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
