@@ -60,12 +60,12 @@ impl Function {
         }
     }
 
-    pub fn apply(&self, env: &Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
+    pub fn apply(&self, env: &mut Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
         let mut new_env = self.env.clone();
         for (k, v) in iter(self.argnames.clone()).zip(iter(eval::evlis(env, args)?)) {
             new_env.insert(k?, v?);
         }
-        eval::eval(&new_env, car(self.body.clone())?)
+        eval::eval(&mut new_env, car(self.body.clone())?)
     }
 }
 
