@@ -40,7 +40,7 @@ fn evcon(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
 fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
     let mut new_env = env.new_scope();
-    for x in iter(xs.car()?) {
+    for x in xs.car()?.iter() {
         let x = x?;
         new_env.insert(x.car()?, eval(env, x.cdr()?.car()?)?);
     }
@@ -74,14 +74,16 @@ fn ev_number_op(
     init: i64,
     xs: Rc<Expr>,
 ) -> Result<Rc<Expr>> {
-    let xs = iter(evlis(env, xs)?)
+    let xs = evlis(env, xs)?
+        .iter()
         .map(|x| x.and_then(map_number))
         .collect::<Result<Vec<_>>>()?;
     Ok(number(xs.iter().copied().reduce(f).unwrap_or(init)))
 }
 
 fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: Rc<Expr>) -> Result<Rc<Expr>> {
-    let xs = iter(evlis(env, xs)?)
+    let xs = evlis(env, xs)?
+        .iter()
         .map(|x| x.and_then(map_number))
         .collect::<Result<Vec<_>>>()?;
     Ok(bool_to_expr(xs.windows(2).all(|x| f(x[0], x[1]))))
@@ -95,11 +97,10 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
                 "car" => eval(env, args.car()?)?.car()?,
                 "cdr" => eval(env, args.car()?)?.cdr()?,
                 "quote" => args.car()?,
-                "atom" => bool_to_expr(atom(args.car()?)),
-                "eq" => bool_to_expr(eq(
-                    eval(env, args.car()?)?,
-                    eval(env, args.cdr()?.car()?)?,
-                )),
+                "atom" => bool_to_expr(args.car()?.is_atom()),
+                "eq" => bool_to_expr(
+                    eval(env, args.car()?)?.lisp_eq(eval(env, args.cdr()?.car()?)?.as_ref()),
+                ),
                 "cond" => evcon(env, args)?,
                 "let" => evlet(env, args)?,
                 "lambda" => evlambda(env, args)?,

@@ -45,6 +45,38 @@ impl Expr {
         }
     }
 
+    pub fn is_nil(&self) -> bool {
+        match self {
+            Expr::Symbol(v) if v == NIL => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        matches!(self, Expr::Symbol(_) | Expr::Number(_))
+    }
+
+    pub fn is_cons(&self) -> bool {
+        matches!(self, Expr::Cons(_, _))
+    }
+
+    pub fn lisp_eq(&self, other: &Expr) -> bool {
+        match (self, other) {
+            (Expr::Symbol(x1), Expr::Symbol(y1)) => x1 == y1,
+            (Expr::Number(x1), Expr::Number(y1)) => x1 == y1,
+            _ => false,
+        }
+    }
+}
+
+pub trait RcExprExt {
+    fn iter(&self) -> Iter;
+}
+
+impl RcExprExt for Rc<Expr> {
+    fn iter(&self) -> Iter {
+        Iter { xs: self.clone() }
+    }
 }
 
 impl fmt::Display for Expr {
@@ -53,7 +85,7 @@ impl fmt::Display for Expr {
             Expr::Cons(head, rest) => {
                 write!(f, "({}", head)?;
                 let mut rest = rest.clone();
-                while consp(rest.clone()) {
+                while rest.clone().is_cons() {
                     write!(f, " {}", rest.car().map_err(|_| fmt::Error)?)?;
                     rest = rest.cdr().map_err(|_| fmt::Error)?;
                 }
@@ -82,7 +114,7 @@ impl Function {
 
     pub fn apply(&self, env: &mut Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
         let mut new_env = self.env.new_scope();
-        for (k, v) in iter(self.argnames.clone()).zip(iter(eval::evlis(env, args)?)) {
+        for (k, v) in self.argnames.clone().iter().zip(eval::evlis(env, args)?.iter()) {
             new_env.insert(k?, v?);
         }
         eval::eval(&mut new_env, self.body.car()?)
@@ -139,32 +171,12 @@ pub fn list(xs: &[Rc<Expr>]) -> Rc<Expr> {
     cons_list(xs, nil())
 }
 
-pub fn atom(x: Rc<Expr>) -> bool {
-    matches!(x.as_ref(), Expr::Symbol(_) | Expr::Number(_))
-}
-
-pub fn consp(x: Rc<Expr>) -> bool {
-    matches!(x.as_ref(), Expr::Cons(_, _))
-}
-
-pub fn eq(x: Rc<Expr>, y: Rc<Expr>) -> bool {
-    match (x.as_ref(), y.as_ref()) {
-        (Expr::Symbol(x1), Expr::Symbol(y1)) => x1 == y1,
-        (Expr::Number(x1), Expr::Number(y1)) => x1 == y1,
-        _ => false,
-    }
-}
-
 pub fn bool_to_expr(x: bool) -> Rc<Expr> {
     if x {
         t()
     } else {
         nil()
     }
-}
-
-pub fn iter(xs: Rc<Expr>) -> Iter {
-    Iter { xs }
 }
 
 pub struct Iter {
@@ -183,7 +195,7 @@ impl Iterator for Iter {
     type Item = Result<Rc<Expr>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.xs == nil() {
+        if self.xs.is_nil() {
             None
         } else {
             let x = self.next_item();
@@ -248,11 +260,11 @@ mod tests {
     fn test_iter() {
         let xs = list((0..5).map(number).collect::<Vec<_>>().as_ref());
         assert_eq!(
-            iter(xs).flatten().collect::<Vec<_>>(),
+            xs.iter().flatten().collect::<Vec<_>>(),
             (0..5).map(number).collect::<Vec<_>>()
         );
 
         let xs = cons(number(1), number(2));
-        assert_eq!(iter(xs).flatten().collect::<Vec<_>>(), vec![number(1)]);
+        assert_eq!(xs.iter().flatten().collect::<Vec<_>>(), vec![number(1)]);
     }
 }
