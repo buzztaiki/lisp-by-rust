@@ -67,6 +67,14 @@ impl Expr {
             _ => false,
         }
     }
+
+    pub fn from_bool(x: bool) -> Rc<Expr> {
+        if x {
+            t()
+        } else {
+            nil()
+        }
+    }
 }
 
 pub trait RcExprExt {
@@ -169,14 +177,6 @@ pub fn cons_list(xs: &[Rc<Expr>], tail: Rc<Expr>) -> Rc<Expr> {
 
 pub fn list(xs: &[Rc<Expr>]) -> Rc<Expr> {
     cons_list(xs, nil())
-}
-
-pub fn bool_to_expr(x: bool) -> Rc<Expr> {
-    if x {
-        t()
-    } else {
-        nil()
-    }
 }
 
 pub struct Iter {

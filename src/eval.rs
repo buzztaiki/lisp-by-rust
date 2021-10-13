@@ -86,7 +86,7 @@ fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: Rc<Expr>) -> R
         .iter()
         .map(|x| x.and_then(map_number))
         .collect::<Result<Vec<_>>>()?;
-    Ok(bool_to_expr(xs.windows(2).all(|x| f(x[0], x[1]))))
+    Ok(Expr::from_bool(xs.windows(2).all(|x| f(x[0], x[1]))))
 }
 
 pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> {
@@ -97,8 +97,8 @@ pub fn apply(env: &mut Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> 
                 "car" => eval(env, args.car()?)?.car()?,
                 "cdr" => eval(env, args.car()?)?.cdr()?,
                 "quote" => args.car()?,
-                "atom" => bool_to_expr(args.car()?.is_atom()),
-                "eq" => bool_to_expr(
+                "atom" => Expr::from_bool(args.car()?.is_atom()),
+                "eq" => Expr::from_bool(
                     eval(env, args.car()?)?.lisp_eq(eval(env, args.cdr()?.car()?)?.as_ref()),
                 ),
                 "cond" => evcon(env, args)?,
