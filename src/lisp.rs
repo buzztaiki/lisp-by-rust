@@ -170,6 +170,38 @@ pub fn pairs(mut xs: Rc<Expr>, mut ys: Rc<Expr>) -> Result<Vec<(Rc<Expr>, Rc<Exp
     }
 }
 
+pub fn iter(xs: Rc<Expr>) -> Iter {
+    Iter { xs }
+}
+
+pub struct Iter {
+    xs: Rc<Expr>,
+}
+
+impl Iter {
+    fn next_item(&mut self) -> Result<Rc<Expr>> {
+        let x = car(self.xs.clone())?;
+        self.xs = cdr(self.xs.clone())?;
+        Ok(x)
+    }
+}
+
+impl Iterator for Iter {
+    type Item = Result<Rc<Expr>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.xs == nil() {
+            None
+        } else {
+            let x = self.next_item();
+            if x.is_err() {
+                self.xs = nil();
+            }
+            Some(x)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,5 +249,14 @@ mod tests {
             list(&[number(10), list(&[number(20), number(30)]), number(40)]).to_string(),
             "(10 (20 30) 40)"
         );
+    }
+
+    #[test]
+    fn test_iter() {
+        let xs = list((0..5).map(number).collect::<Vec<_>>().as_ref());
+        assert_eq!(iter(xs).flatten().collect::<Vec<_>>(), (0..5).map(number).collect::<Vec<_>>());
+
+        let xs = cons(number(1), number(2));
+        assert_eq!(iter(xs).flatten().collect::<Vec<_>>(), vec![number(1)]);
     }
 }
