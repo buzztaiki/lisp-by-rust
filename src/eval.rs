@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::env::Env;
 use crate::lisp::*;
 
 pub fn eval(env: &mut Env, x: Rc<Expr>) -> Result<Rc<Expr>> {
@@ -8,7 +9,6 @@ pub fn eval(env: &mut Env, x: Rc<Expr>) -> Result<Rc<Expr>> {
         Expr::Symbol(_) if x == nil() || x == t() => Ok(x),
         Expr::Symbol(_) => env
             .get(&x)
-            .cloned()
             .ok_or_else(|| Error(format!("symbol not found: {}", x))),
         Expr::Number(_) => Ok(x),
         Expr::Function(_) => Ok(x),
@@ -39,7 +39,7 @@ fn evcon(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
 
 fn evlet(env: &mut Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
-    let mut new_env = env.clone();
+    let mut new_env = env.new_scope();
     for x in iter(car(xs.clone())?) {
         let x = x?;
         new_env.insert(car(x.clone())?, eval(env, car(cdr(x)?)?)?);

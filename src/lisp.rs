@@ -1,7 +1,7 @@
 use core::fmt;
-use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::env::Env;
 use crate::eval;
 
 #[derive(Debug, thiserror::Error)]
@@ -9,8 +9,6 @@ use crate::eval;
 pub struct Error(pub String);
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-pub type Env = HashMap<Rc<Expr>, Rc<Expr>>;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Expr {
@@ -20,7 +18,7 @@ pub enum Expr {
     Function(Function),
 }
 
-#[derive(Debug, Eq)]
+#[derive(Debug)]
 pub struct Function {
     env: Env,
     argnames: Rc<Expr>,
@@ -54,14 +52,14 @@ impl fmt::Display for Expr {
 impl Function {
     pub fn new(env: &Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
         Self {
-            env: env.clone(),
+            env: env.new_scope(),
             argnames,
             body,
         }
     }
 
     pub fn apply(&self, env: &mut Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
-        let mut new_env = self.env.clone();
+        let mut new_env = self.env.new_scope();
         for (k, v) in iter(self.argnames.clone()).zip(iter(eval::evlis(env, args)?)) {
             new_env.insert(k?, v?);
         }
@@ -74,6 +72,8 @@ impl PartialEq for Function {
         std::ptr::eq(self, other)
     }
 }
+
+impl Eq for Function {}
 
 impl std::hash::Hash for Function {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

@@ -1,5 +1,6 @@
 use std::io;
 
+use crate::env::Env;
 use crate::eval;
 use crate::lisp::*;
 use crate::reader::Reader;

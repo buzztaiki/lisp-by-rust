@@ -4,7 +4,8 @@ mod eval;
 mod lisp;
 mod reader;
 mod repl;
+mod env;
 
 fn main() -> lisp::Result<()> {
-    repl::repl(lisp::Env::new(), stdin())
+    repl::repl(env::Env::new(), stdin())
 }
