@@ -47,23 +47,30 @@ fn evlet(env: &Env, xs: Rc<Expr>) -> Result<Rc<Expr>> {
     eval(&new_env, car(cdr(xs)?)?)
 }
 
-fn ev_number_op(env: &Env, f: impl Fn(i64, i64) -> i64, init: i64, xs: Rc<Expr>) -> Result<Rc<Expr>> {
-    let map_number = |x: Rc<Expr>| match x.as_ref() {
+fn map_number(x: Rc<Expr>) -> Result<i64> {
+    match x.as_ref() {
         Expr::Number(x) => Ok(*x),
         _ => Err(Error(format!("invalid number: {}", x))),
-    };
+    }
+}
 
+fn ev_number_op(
+    env: &Env,
+    f: impl Fn(i64, i64) -> i64,
+    init: i64,
+    xs: Rc<Expr>,
+) -> Result<Rc<Expr>> {
     let xs = iter(evlis(env, xs)?)
         .map(|x| x.and_then(map_number))
         .collect::<Result<Vec<_>>>()?;
     Ok(number(xs.iter().copied().reduce(f).unwrap_or(init)))
 }
 
-fn number_cmp(f: impl FnOnce(i64, i64) -> bool, args: Rc<Expr>) -> Result<Rc<Expr>> {
-    match (car(args.clone())?.as_ref(), car(cdr(args)?)?.as_ref()) {
-        (Expr::Number(x), Expr::Number(y)) => Ok(bool_to_expr(f(*x, *y))),
-        (x, y) => Err(Error(format!("invalid number: {}, {}", x, y))),
-    }
+fn ev_number_cmp(env: &Env, f: impl Fn(i64, i64) -> bool, xs: Rc<Expr>) -> Result<Rc<Expr>> {
+    let xs = iter(evlis(env, xs)?)
+        .map(|x| x.and_then(map_number))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(bool_to_expr(xs.windows(2).all(|x| f(x[0], x[1]))))
 }
 
 pub fn apply(env: &Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> {
@@ -86,10 +93,10 @@ pub fn apply(env: &Env, func: Rc<Expr>, args: Rc<Expr>) -> Result<Rc<Expr>> {
                 "-" => ev_number_op(env, |a, b| a - b, 0, args)?,
                 "*" => ev_number_op(env, |a, b| a * b, 1, args)?,
                 "/" => ev_number_op(env, |a, b| a / b, 0, args)?,
-                "<" => number_cmp(|x, y| x < y, evlis(env, args)?)?,
-                "<=" => number_cmp(|x, y| x <= y, evlis(env, args)?)?,
-                ">" => number_cmp(|x, y| x > y, evlis(env, args)?)?,
-                ">=" => number_cmp(|x, y| x >= y, evlis(env, args)?)?,
+                "<" => ev_number_cmp(env, |a, b| a < b, args)?,
+                ">" => ev_number_cmp(env, |a, b| a > b, args)?,
+                "<=" => ev_number_cmp(env, |a, b| a <= b, args)?,
+                ">=" => ev_number_cmp(env, |a, b| a >= b, args)?,
                 _ => apply(env, eval(env, func)?, evlis(env, args)?)?,
             };
             Ok(res)
