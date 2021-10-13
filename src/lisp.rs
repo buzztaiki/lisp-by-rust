@@ -97,7 +97,7 @@ impl fmt::Display for Expr {
                     write!(f, " {}", rest.car().map_err(|_| fmt::Error)?)?;
                     rest = rest.cdr().map_err(|_| fmt::Error)?;
                 }
-                if rest != nil() {
+                if !rest.is_nil() {
                     write!(f, " . {}", rest)?;
                 }
 
