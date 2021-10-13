@@ -46,10 +46,7 @@ impl Expr {
     }
 
     pub fn is_nil(&self) -> bool {
-        match self {
-            Expr::Symbol(v) if v == NIL => true,
-            _ => false,
-        }
+        matches!(self, Expr::Symbol(v) if v == NIL)
     }
 
     pub fn is_atom(&self) -> bool {
@@ -156,7 +153,7 @@ pub fn number(x: i64) -> Rc<Expr> {
 }
 
 pub fn function(x: Rc<Function>) -> Rc<Expr> {
-    Rc::new(Expr::Function(x.clone()))
+    Rc::new(Expr::Function(x))
 }
 
 pub fn nil() -> Rc<Expr> {

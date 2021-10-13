@@ -9,7 +9,7 @@ pub fn eval(env: &mut Env, x: &Expr) -> Result<Rc<Expr>> {
         Expr::Symbol(v) if v == NIL => Ok(nil()),
         Expr::Symbol(v) if v == T => Ok(t()),
         Expr::Symbol(_) => env
-            .get(&x)
+            .get(x)
             .ok_or_else(|| Error(format!("symbol not found: {}", x))),
         Expr::Number(v) => Ok(number(*v)),
         Expr::Function(f) => Ok(function(f.clone())),
@@ -75,7 +75,7 @@ fn ev_number_op(
     init: i64,
     xs: &Expr,
 ) -> Result<Rc<Expr>> {
-    let xs = evlis(env, &xs)?
+    let xs = evlis(env, xs)?
         .iter()
         .map(|x| x.and_then(|x| map_number(&x)))
         .collect::<Result<Vec<_>>>()?;
@@ -83,7 +83,7 @@ fn ev_number_op(
 }
 
 fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: &Expr) -> Result<Rc<Expr>> {
-    let xs = evlis(env, &xs)?
+    let xs = evlis(env, xs)?
         .iter()
         .map(|x| x.and_then(|x| map_number(&x)))
         .collect::<Result<Vec<_>>>()?;

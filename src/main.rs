@@ -9,7 +9,7 @@ mod reader;
 mod repl;
 
 fn main() -> lisp::Result<()> {
-    if let Some(fname) = args().skip(1).next() {
+    if let Some(fname) = args().nth(1) {
         let f = File::open(fname).map_err(|e| lisp::Error(e.to_string()))?;
         repl::repl(env::Env::new(), f)
     } else {
