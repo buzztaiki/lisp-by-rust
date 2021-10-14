@@ -286,11 +286,29 @@ mod tests {
     }
 
     #[test]
+    fn test_eval_defun_in_closure() {
+        assert_eval(r"
+(let ((x 1)) (defun f (y) (+ x y)))
+(f 2)
+",
+                    number(3));
+    }
+
+    #[test]
     fn test_eval_defmacro() {
         let env = &mut global_env();
         assert_eval_with_env(env, "(defmacro myand (a b) (list 'cond (list a b))) t", lisp::t());
         assert_eval_with_env(env, "(myand 'moo 'woo)", symbol("woo"));
         assert_eval_with_env(env, "(myand nil 'woo)", nil());
         assert_eval_with_env(env, "(myand 'moo nil)", nil());
+    }
+
+    #[test]
+    fn test_eval_defmacro_in_closure() {
+        assert_eval(r"
+(let ((x 1)) (defmacro m () (list '+ x 'x)))
+(let ((x 2)) (m))
+",
+                    number(3));
     }
 }
