@@ -34,11 +34,10 @@ pub struct Function {
 
 pub struct Builtin {
     name: String,
-    func: Box<dyn BuiltinFn>,
+    func: BuiltinFn,
 }
 
-pub trait BuiltinFn: Fn(&mut Env, &Expr) -> Result<Rc<Expr>> {}
-impl<F: Fn(&mut Env, &Expr) -> Result<Rc<Expr>>> BuiltinFn for F {}
+pub type BuiltinFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
 
 impl Expr {
     pub fn car(&self) -> Result<Rc<Expr>> {
@@ -125,7 +124,7 @@ impl fmt::Display for Expr {
 }
 
 impl FunctionExpr {
-    pub fn builtin(name: &str, func: Box<dyn BuiltinFn>) -> Rc<Self> {
+    pub fn builtin(name: &str, func: BuiltinFn) -> Rc<Self> {
         Rc::new(Self::Builtin(Builtin {
             name: name.to_string(),
             func,

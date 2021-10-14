@@ -93,47 +93,74 @@ fn map_number(args: Rc<Expr>) -> impl Iterator<Item = Result<i64>> {
     })
 }
 
-fn number_op(f: impl Fn(i64, i64) -> i64, init: i64) -> impl BuiltinFn {
-    move |env: &mut Env, args: &Expr| {
-        let args = map_number(evlis(env, args)?);
-        let res = args.reduce(|a, b| a.and_then(|a| b.map(|b| f(a, b))));
-        res.unwrap_or(Ok(init)).map(number)
-    }
+fn number_op(
+    env: &mut Env,
+    args: &Expr,
+    f: impl Fn(i64, i64) -> i64,
+    init: i64,
+) -> Result<Rc<Expr>> {
+    let args = map_number(evlis(env, args)?);
+    let res = args.reduce(|a, b| a.and_then(|a| b.map(|b| f(a, b))));
+    res.unwrap_or(Ok(init)).map(number)
 }
 
-fn number_cmp(f: impl Fn(i64, i64) -> bool) -> impl BuiltinFn {
-    move |env: &mut Env, args: &Expr| {
-        let mut args = map_number(evlis(env, args)?);
-        let x = args
-            .next()
-            .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
-        let res = args.try_fold(x, |a, b| {
-            a.and_then(|a| b.map(|b| f(a, b).then(|| b))).transpose()
-        });
-        res.transpose().map(|x| Expr::from_bool(x.is_some()))
-    }
+fn number_cmp(env: &mut Env, args: &Expr, f: impl Fn(i64, i64) -> bool) -> Result<Rc<Expr>> {
+    let mut args = map_number(evlis(env, args)?);
+    let x = args
+        .next()
+        .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
+    let res = args.try_fold(x, |a, b| {
+        a.and_then(|a| b.map(|b| f(a, b).then(|| b))).transpose()
+    });
+    res.transpose().map(|x| Expr::from_bool(x.is_some()))
 }
+
+macro_rules! def_number_op {
+    ($func_name:ident, $op:tt, $init:expr) => {
+        fn $func_name(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+            number_op(env, args, |a, b| a $op b, $init)
+        }
+    };
+}
+
+macro_rules! def_number_cmp {
+    ($func_name:ident, $op:tt) => {
+        fn $func_name(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+            number_cmp(env, args, |a, b| a $op b)
+        }
+    };
+}
+
+def_number_op!(add, +, 0);
+def_number_op!(sub, -, 0);
+def_number_op!(mul, *, 1);
+def_number_op!(div, /, 1);
+
+def_number_cmp!(lt, <);
+def_number_cmp!(gt, >);
+def_number_cmp!(le, <=);
+def_number_cmp!(ge, >=);
 
 pub fn global_env() -> Env {
-    let builtins: Vec<(&str, Box<dyn BuiltinFn>)> = vec![
-        ("cons", Box::new(cons)),
-        ("car", Box::new(car)),
-        ("cdr", Box::new(cdr)),
-        ("quote", Box::new(quote)),
-        ("atom", Box::new(atom)),
-        ("eq", Box::new(eq)),
-        ("cond", Box::new(cond)),
-        ("let", Box::new(lisp_let)),
-        ("lambda", Box::new(lambda)),
-        ("defun", Box::new(defun)),
-        ("+", Box::new(number_op(|a, b| a + b, 0))),
-        ("-", Box::new(number_op(|a, b| a - b, 0))),
-        ("*", Box::new(number_op(|a, b| a * b, 1))),
-        ("/", Box::new(number_op(|a, b| a / b, 0))),
-        ("<", Box::new(number_cmp(|a, b| a < b))),
-        (">", Box::new(number_cmp(|a, b| a > b))),
-        ("<=", Box::new(number_cmp(|a, b| a <= b))),
-        (">=", Box::new(number_cmp(|a, b| a >= b))),
+    let builtins: Vec<(&str, BuiltinFn)> = vec![
+        ("cons", cons),
+        ("car", car),
+        ("cdr", cdr),
+        ("quote", quote),
+        ("atom", atom),
+        ("eq", eq),
+        ("cond", cond),
+        ("let", lisp_let),
+        ("lambda", lambda),
+        ("defun", defun),
+        ("+", add),
+        ("-", sub),
+        ("*", mul),
+        ("/", div),
+        ("<", lt),
+        (">", gt),
+        ("<=", le),
+        (">=", ge),
     ];
 
     let mut env = eval::global_env();
