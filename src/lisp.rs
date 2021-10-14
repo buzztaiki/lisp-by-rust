@@ -1,4 +1,4 @@
-use core::fmt;
+use std::fmt;
 use std::rc::Rc;
 
 use crate::env::Env;
@@ -15,15 +15,29 @@ pub enum Expr {
     Cons(Rc<Expr>, Rc<Expr>),
     Symbol(String),
     Number(i64),
-    Function(Rc<Function>),
+    Function(Rc<FunctionExpr>),
+}
+
+#[derive(Debug)]
+pub enum FunctionExpr {
+    Builtin(Builtin),
+    Function(Function),
 }
 
 #[derive(Debug)]
 pub struct Function {
     env: Env,
+    name: String,
     argnames: Rc<Expr>,
     body: Rc<Expr>,
 }
+
+pub struct Builtin {
+    name: String,
+    func: BuiltinFn,
+}
+
+pub type BuiltinFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
 
 impl Expr {
     pub fn car(&self) -> Result<Rc<Expr>> {
@@ -104,40 +118,76 @@ impl fmt::Display for Expr {
             }
             Expr::Symbol(x) => write!(f, "{}", x),
             Expr::Number(x) => write!(f, "{}", x),
-            Expr::Function(_) => write!(f, "<function>"),
+            Expr::Function(x) => write!(f, "<function {}>", x.name()),
         }
     }
 }
 
-impl Function {
-    pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self {
+impl FunctionExpr {
+    pub fn builtin(name: &str, func: BuiltinFn) -> Rc<Self> {
+        Rc::new(Self::Builtin(Builtin {
+            name: name.to_string(),
+            func,
+        }))
+    }
+
+    pub fn function(env: Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
+        Rc::new(Self::Function(Function {
             env,
+            name: name.to_string(),
             argnames,
             body,
-        })
+        }))
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            FunctionExpr::Builtin(x) => x.name.as_str(),
+            FunctionExpr::Function(x) => x.name.as_str(),
+        }
     }
 
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let mut new_env = self.env.new_scope();
-        for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
-            new_env.insert(k?, v?);
+        match self {
+            FunctionExpr::Builtin(x) => x.apply(env, args),
+            FunctionExpr::Function(x) => x.apply(env, args),
         }
-        eval::eval(&mut new_env, &*self.body.car()?)
     }
 }
 
-impl PartialEq for Function {
+impl PartialEq for FunctionExpr {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
     }
 }
 
-impl Eq for Function {}
+impl Eq for FunctionExpr {}
 
-impl std::hash::Hash for Function {
+impl std::hash::Hash for FunctionExpr {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         std::ptr::hash(self as *const Self, state);
+    }
+}
+
+impl Builtin {
+    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+        (self.func)(env, args)
+    }
+}
+
+impl fmt::Debug for Builtin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Builtin").field("name", &self.name).finish()
+    }
+}
+
+impl Function {
+    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+        let mut new_env = self.env.new_scope();
+        for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
+            new_env.insert(k?, v?);
+        }
+        eval::eval(&mut new_env, &*self.body.car()?)
     }
 }
 
@@ -153,7 +203,7 @@ pub fn number(x: i64) -> Rc<Expr> {
     Rc::new(Expr::Number(x))
 }
 
-pub fn function(x: Rc<Function>) -> Rc<Expr> {
+pub fn function(x: Rc<FunctionExpr>) -> Rc<Expr> {
     Rc::new(Expr::Function(x))
 }
 
@@ -168,7 +218,7 @@ pub fn nil() -> Rc<Expr> {
 }
 
 pub fn t() -> Rc<Expr> {
-   T_SYM.with(|f| f.clone())
+    T_SYM.with(|f| f.clone())
 }
 
 pub fn cons_list(xs: &[Rc<Expr>], tail: Rc<Expr>) -> Rc<Expr> {

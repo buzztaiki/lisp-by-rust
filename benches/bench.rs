@@ -4,9 +4,9 @@
 
 extern crate test;
 use lib::env::Env;
-use lib::eval;
 use lib::lisp::Expr;
 use lib::reader::Reader;
+use lib::{builtin, eval};
 use std::rc::Rc;
 use test::black_box;
 
@@ -33,7 +33,7 @@ fn fibonacci(n: u64) -> u64 {
 
 #[bench]
 fn bench_lisp_fib10(b: &mut test::Bencher) {
-    let mut env = eval::global_env();
+    let mut env = builtin::global_env();
     define_fib(&mut env);
 
     let expr = read("(fib 10)");
@@ -42,7 +42,7 @@ fn bench_lisp_fib10(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_lisp_fib20(b: &mut test::Bencher) {
-    let mut env = eval::global_env();
+    let mut env = builtin::global_env();
     define_fib(&mut env);
 
     let expr = read("(fib 20)");
