@@ -25,9 +25,6 @@ pub struct Function {
     body: Rc<Expr>,
 }
 
-pub const NIL: &str = "nil";
-pub const T: &str = "t";
-
 impl Expr {
     pub fn car(&self) -> Result<Rc<Expr>> {
         match self {
@@ -160,12 +157,18 @@ pub fn function(x: Rc<Function>) -> Rc<Expr> {
     Rc::new(Expr::Function(x))
 }
 
+pub const NIL: &str = "nil";
+pub const T: &str = "t";
+
+thread_local!(static NIL_SYM: Rc<Expr> = symbol(NIL));
+thread_local!(static T_SYM: Rc<Expr> = symbol(T));
+
 pub fn nil() -> Rc<Expr> {
-    symbol(NIL)
+    NIL_SYM.with(|f| f.clone())
 }
 
 pub fn t() -> Rc<Expr> {
-    symbol(T)
+   T_SYM.with(|f| f.clone())
 }
 
 pub fn cons_list(xs: &[Rc<Expr>], tail: Rc<Expr>) -> Rc<Expr> {
