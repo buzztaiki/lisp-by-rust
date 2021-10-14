@@ -201,29 +201,20 @@ impl fmt::Debug for Builtin {
 
 impl Function {
     fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let mut vars = Vec::new();
-        for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
-            vars.push((k?, v?));
-        }
-
+        let evargs = eval::evlis(env, args)?;
         let scope = &mut env.enter_scope();
         scope.extend(self.vars.iter().cloned());
-        scope.extend(vars.into_iter());
+        eval::bind_args(scope, &self.argnames, &evargs)?;
         eval::eval(scope, &*self.body.car()?)
     }
 }
 
 impl MacroForm {
     fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let mut vars = Vec::new();
-        for (k, v) in self.argnames.iter().zip(args.iter()) {
-            vars.push((k?, v?));
-        }
-
         let new_body = {
             let scope = &mut env.enter_scope();
             scope.extend(self.vars.iter().cloned());
-            scope.extend(vars.into_iter());
+            eval::bind_args(scope, &self.argnames, &args)?;
             eval::eval(scope, &*self.body.car()?)?
         };
         eval::eval(env, &new_body)

@@ -57,8 +57,8 @@ fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
     let mut vars = env.capture();
     for x in args.car()?.iter() {
-        let x = x?;
-        vars.push((x.car()?, eval(env, &*x.cadr()?)?));
+        let (car, cdr) = x?.pair()?;
+        vars.push((car, eval(env, &*cdr.car()?)?));
     }
 
     let scope = &mut env.enter_scope();

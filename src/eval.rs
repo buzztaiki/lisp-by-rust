@@ -22,6 +22,13 @@ pub fn evlis(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
     }
 }
 
+pub fn bind_args(env: &mut Env, names: &Expr, values: &Expr) -> Result<()> {
+    for (k, v) in names.iter().zip(values.iter()) {
+        env.insert(k?, v?);
+    }
+    Ok(())
+}
+
 pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     match func {
         Expr::Symbol(_) => {
