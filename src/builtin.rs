@@ -63,6 +63,7 @@ fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
     let f = function(FunctionExpr::function(
         env.new_scope(),
+        "lambda",
         args.car()?,
         args.cdr()?,
     ));
@@ -72,7 +73,13 @@ fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
     let name = args.car()?;
-    let f = lambda(env, &*args.cdr()?)?;
+    let args = args.cdr()?;
+    let f = function(FunctionExpr::function(
+        env.new_scope(),
+        &name.to_string(),
+        args.car()?,
+        args.cdr()?,
+    ));
     env.insert(name, f.clone());
     Ok(f)
 }

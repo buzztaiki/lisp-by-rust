@@ -27,6 +27,7 @@ pub enum FunctionExpr {
 #[derive(Debug)]
 pub struct Function {
     env: Env,
+    name: String,
     argnames: Rc<Expr>,
     body: Rc<Expr>,
 }
@@ -118,7 +119,7 @@ impl fmt::Display for Expr {
             }
             Expr::Symbol(x) => write!(f, "{}", x),
             Expr::Number(x) => write!(f, "{}", x),
-            Expr::Function(_) => write!(f, "<function>"),
+            Expr::Function(x) => write!(f, "<function {}>", x.name()),
         }
     }
 }
@@ -131,12 +132,20 @@ impl FunctionExpr {
         }))
     }
 
-    pub fn function(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
+    pub fn function(env: Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
         Rc::new(Self::Function(Function {
             env,
+            name: name.to_string(),
             argnames,
             body,
         }))
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            FunctionExpr::Builtin(x) => x.name.as_str(),
+            FunctionExpr::Function(x) => x.name.as_str(),
+        }
     }
 
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
