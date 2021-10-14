@@ -61,13 +61,9 @@ fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         vars.push((x.car()?, eval(env, &*x.cadr()?)?));
     }
 
-    let body = &*args.cadr()?;
-    env.enter_scope();
-    env.extend(vars.into_iter());
-
-    let res = eval(env, body);
-    env.exit_scope();
-    res
+    let scope = &mut env.enter_scope();
+    scope.extend(vars.into_iter());
+    eval(scope, &*args.cadr()?)
 }
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -224,7 +220,10 @@ mod tests {
 
     #[test]
     fn test_eval_list() {
-        assert_eval("(let ((x 2)) (list 1 x))", lisp::list(&[number(1), number(2)]));
+        assert_eval(
+            "(let ((x 2)) (list 1 x))",
+            lisp::list(&[number(1), number(2)]),
+        );
     }
 
     #[test]
@@ -294,17 +293,23 @@ mod tests {
 
     #[test]
     fn test_eval_defun_in_closure() {
-        assert_eval(r"
+        assert_eval(
+            r"
 (let ((x 1)) (defun f (y) (+ x y)))
 (f 2)
 ",
-                    number(3));
+            number(3),
+        );
     }
 
     #[test]
     fn test_eval_defmacro() {
         let env = &mut global_env();
-        assert_eval_with_env(env, "(defmacro myand (a b) (list 'cond (list a b))) t", lisp::t());
+        assert_eval_with_env(
+            env,
+            "(defmacro myand (a b) (list 'cond (list a b))) t",
+            lisp::t(),
+        );
         assert_eval_with_env(env, "(myand 'moo 'woo)", symbol("woo"));
         assert_eval_with_env(env, "(myand nil 'woo)", nil());
         assert_eval_with_env(env, "(myand 'moo nil)", nil());
@@ -312,10 +317,12 @@ mod tests {
 
     #[test]
     fn test_eval_defmacro_in_closure() {
-        assert_eval(r"
+        assert_eval(
+            r"
 (let ((x 1)) (defmacro m () (list '+ x 'x)))
 (let ((x 2)) (m))
 ",
-                    number(3));
+            number(3),
+        );
     }
 }

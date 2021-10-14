@@ -1,20 +1,55 @@
 use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use crate::lisp::Expr;
 
 #[derive(Debug)]
 pub struct Env {
-    global: Scope,
-    stack: Vec<Scope>,
+    global: Map,
+    stack: Vec<Map>,
 }
 
-type Scope = HashMap<Rc<Expr>, Rc<Expr>>;
+type Map = HashMap<Rc<Expr>, Rc<Expr>>;
+
+pub struct Scope<'a> {
+    env: &'a mut Env,
+}
+
+impl<'a> Scope<'a> {
+    pub fn env(&self) -> &Env {
+        self.env
+    }
+
+    pub fn env_mut(&mut self) -> &mut Env {
+        self.env
+    }
+}
+
+impl<'a> Drop for Scope<'a> {
+    fn drop(&mut self) {
+        self.env.exit_scope();
+    }
+}
+
+impl<'a> Deref for Scope<'a> {
+    type Target = Env;
+
+    fn deref(&self) -> &Self::Target {
+        self.env
+    }
+}
+
+impl<'a> DerefMut for Scope<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.env
+    }
+}
 
 impl Env {
     pub fn new() -> Self {
         Self {
-            global: Scope::new(),
+            global: Map::new(),
             stack: Vec::new(),
         }
     }
@@ -48,11 +83,12 @@ impl Env {
         x.cloned()
     }
 
-    pub fn enter_scope(&mut self) {
-        self.stack.push(Scope::new());
+    pub fn enter_scope(&mut self) -> Scope {
+        self.stack.push(Map::new());
+        Scope { env: self }
     }
 
-    pub fn exit_scope(&mut self) {
+    fn exit_scope(&mut self) {
         self.stack.pop();
     }
 
@@ -77,15 +113,16 @@ mod tests {
         env.insert(number(10), number(20));
         assert_eq!(env.get(&number(10)), Some(number(20)));
 
-        env.enter_scope();
-        assert_eq!(env.get(&number(10)), Some(number(20)));
+        {
+            let mut scope = env.enter_scope();
+            assert_eq!(scope.get(&number(10)), Some(number(20)));
 
-        env.insert(number(10), number(30));
-        env.insert(number(20), number(40));
-        assert_eq!(env.get(&number(10)), Some(number(30)));
-        assert_eq!(env.get(&number(20)), Some(number(40)));
+            scope.insert(number(10), number(30));
+            scope.insert(number(20), number(40));
+            assert_eq!(scope.get(&number(10)), Some(number(30)));
+            assert_eq!(scope.get(&number(20)), Some(number(40)));
+        }
 
-        env.exit_scope();
         assert_eq!(env.get(&number(10)), Some(number(20)));
         assert_eq!(env.get(&number(20)), None);
     }

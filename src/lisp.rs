@@ -205,15 +205,11 @@ impl Function {
         for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
             vars.push((k?, v?));
         }
-        let body = &*self.body.car()?;
 
-        env.enter_scope();
-        env.extend(self.vars.iter().cloned());
-        env.extend(vars.into_iter());
-
-        let res = eval::eval(env, body);
-        env.exit_scope();
-        res
+        let scope = &mut env.enter_scope();
+        scope.extend(self.vars.iter().cloned());
+        scope.extend(vars.into_iter());
+        eval::eval(scope, &*self.body.car()?)
     }
 }
 
@@ -223,16 +219,14 @@ impl MacroForm {
         for (k, v) in self.argnames.iter().zip(args.iter()) {
             vars.push((k?, v?));
         }
-        let body = &*self.body.car()?;
 
-        env.enter_scope();
-        env.extend(self.vars.iter().cloned());
-        env.extend(vars.into_iter());
-
-        let new_body = eval::eval(env, body);
-        env.exit_scope();
-
-        eval::eval(env, &*new_body?)
+        let new_body = {
+            let scope = &mut env.enter_scope();
+            scope.extend(self.vars.iter().cloned());
+            scope.extend(vars.into_iter());
+            eval::eval(scope, &*self.body.car()?)?
+        };
+        eval::eval(env, &new_body)
     }
 }
 
@@ -292,7 +286,11 @@ pub struct Iter<'a> {
 
 impl<'a> Iter<'a> {
     fn new(init: &'a Expr) -> Self {
-        Self { init, xs: nil(), state: IterState::Init }
+        Self {
+            init,
+            xs: nil(),
+            state: IterState::Init,
+        }
     }
 
     fn current(&self) -> Option<&Expr> {
@@ -317,11 +315,11 @@ impl<'a> Iterator for Iter<'a> {
                 self.xs = rest;
                 self.state = IterState::Cont;
                 Some(Ok(head))
-            },
+            }
             Err(e) => {
                 self.state = IterState::Stop;
                 Some(Err(e))
-            },
+            }
         }
     }
 }
