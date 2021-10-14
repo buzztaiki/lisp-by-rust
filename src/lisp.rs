@@ -22,6 +22,12 @@ pub enum Expr {
 pub enum FunctionExpr {
     Builtin(Builtin),
     Function(Function),
+    MacroForm(MacroForm),
+}
+
+pub struct Builtin {
+    name: String,
+    func: BuiltinFn,
 }
 
 #[derive(Debug)]
@@ -32,9 +38,12 @@ pub struct Function {
     body: Rc<Expr>,
 }
 
-pub struct Builtin {
+#[derive(Debug)]
+pub struct MacroForm {
+    env: Env,
     name: String,
-    func: BuiltinFn,
+    argnames: Rc<Expr>,
+    body: Rc<Expr>,
 }
 
 pub type BuiltinFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
@@ -54,6 +63,10 @@ impl Expr {
             Expr::Symbol(v) if v == NIL => Ok(nil()),
             _ => Err(Error(format!("expect list: {}", self))),
         }
+    }
+
+    pub fn pair(&self) -> Result<(Rc<Expr>, Rc<Expr>)> {
+        self.car().and_then(|a| self.cdr().map(|b| (a, b)))
     }
 
     pub fn cadr(&self) -> Result<Rc<Expr>> {
@@ -80,22 +93,16 @@ impl Expr {
         }
     }
 
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
+    }
+
     pub fn from_bool(x: bool) -> Rc<Expr> {
         if x {
             t()
         } else {
             nil()
         }
-    }
-}
-
-pub trait RcExprExt {
-    fn iter(&self) -> Iter;
-}
-
-impl RcExprExt for Rc<Expr> {
-    fn iter(&self) -> Iter {
-        Iter { xs: self.clone() }
     }
 }
 
@@ -140,10 +147,20 @@ impl FunctionExpr {
         }))
     }
 
+    pub fn macro_form(env: Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
+        Rc::new(Self::MacroForm(MacroForm {
+            env,
+            name: name.to_string(),
+            argnames,
+            body,
+        }))
+    }
+
     pub fn name(&self) -> &str {
         match self {
             FunctionExpr::Builtin(x) => x.name.as_str(),
             FunctionExpr::Function(x) => x.name.as_str(),
+            FunctionExpr::MacroForm(x) => x.name.as_str(),
         }
     }
 
@@ -151,6 +168,7 @@ impl FunctionExpr {
         match self {
             FunctionExpr::Builtin(x) => x.apply(env, args),
             FunctionExpr::Function(x) => x.apply(env, args),
+            FunctionExpr::MacroForm(x) => x.apply(env, args),
         }
     }
 }
@@ -188,6 +206,17 @@ impl Function {
             new_env.insert(k?, v?);
         }
         eval::eval(&mut new_env, &*self.body.car()?)
+    }
+}
+
+impl MacroForm {
+    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+        let mut new_env = self.env.new_scope();
+        for (k, v) in self.argnames.iter().zip(args.iter()) {
+            new_env.insert(k?, v?);
+        }
+        let body = eval::eval(&mut new_env, &*self.body.car()?)?;
+        eval::eval(env, &body)
     }
 }
 
@@ -233,30 +262,50 @@ pub fn list(xs: &[Rc<Expr>]) -> Rc<Expr> {
     cons_list(xs, nil())
 }
 
-pub struct Iter {
-    xs: Rc<Expr>,
+enum IterState {
+    Init,
+    Cont,
+    Stop,
 }
 
-impl Iter {
-    fn next_item(&mut self) -> Result<Rc<Expr>> {
-        let x = self.xs.car()?;
-        self.xs = self.xs.cdr()?;
-        Ok(x)
+pub struct Iter<'a> {
+    init: &'a Expr,
+    xs: Rc<Expr>,
+    state: IterState,
+}
+
+impl<'a> Iter<'a> {
+    fn new(init: &'a Expr) -> Self {
+        Self { init, xs: nil(), state: IterState::Init }
+    }
+
+    fn current(&self) -> Option<&Expr> {
+        match self.state {
+            IterState::Init => Some(self.init),
+            IterState::Cont => Some(&self.xs),
+            IterState::Stop => None,
+        }
     }
 }
 
-impl Iterator for Iter {
+impl<'a> Iterator for Iter<'a> {
     type Item = Result<Rc<Expr>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.xs.is_nil() {
-            None
-        } else {
-            let x = self.next_item();
-            if x.is_err() {
-                self.xs = nil();
-            }
-            Some(x)
+        let xs = self.current()?;
+        if xs.is_nil() {
+            return None;
+        }
+        match xs.pair() {
+            Ok((head, rest)) => {
+                self.xs = rest;
+                self.state = IterState::Cont;
+                Some(Ok(head))
+            },
+            Err(e) => {
+                self.state = IterState::Stop;
+                Some(Err(e))
+            },
         }
     }
 }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::env::Env;
 use crate::eval::{self, eval, evlis};
 use crate::lisp::{
-    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, RcExprExt, Result,
+    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
 };
 
 fn cons(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -11,6 +11,10 @@ fn cons(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         eval(env, &*args.car()?)?,
         eval(env, &*args.cadr()?)?,
     ))
+}
+
+fn list(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    eval::evlis(env, args)
 }
 
 fn car(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -84,7 +88,21 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     Ok(f)
 }
 
-fn map_number(args: Rc<Expr>) -> impl Iterator<Item = Result<i64>> {
+fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    // (defmacro f (x y) (cons x y))
+    let name = args.car()?;
+    let args = args.cdr()?;
+    let f = function(FunctionExpr::macro_form(
+        env.new_scope(),
+        &name.to_string(),
+        args.car()?,
+        args.cdr()?,
+    ));
+    env.insert(name, f.clone());
+    Ok(f)
+}
+
+fn map_number<'a>(args: &'a Expr) -> impl Iterator<Item = Result<i64>> + 'a {
     args.iter().map(|x| {
         x.and_then(|x| match &*x {
             Expr::Number(x) => Ok(*x),
@@ -99,13 +117,15 @@ fn number_op(
     f: impl Fn(i64, i64) -> i64,
     init: i64,
 ) -> Result<Rc<Expr>> {
-    let args = map_number(evlis(env, args)?);
+    let evargs = evlis(env, args)?;
+    let args = map_number(&evargs);
     let res = args.reduce(|a, b| a.and_then(|a| b.map(|b| f(a, b))));
     res.unwrap_or(Ok(init)).map(number)
 }
 
 fn number_cmp(env: &mut Env, args: &Expr, f: impl Fn(i64, i64) -> bool) -> Result<Rc<Expr>> {
-    let mut args = map_number(evlis(env, args)?);
+    let evargs = evlis(env, args)?;
+    let mut args = map_number(&evargs);
     let x = args
         .next()
         .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
@@ -144,6 +164,7 @@ def_number_cmp!(ge, >=);
 pub fn global_env() -> Env {
     let builtins: Vec<(&str, BuiltinFn)> = vec![
         ("cons", cons),
+        ("list", list),
         ("car", car),
         ("cdr", cdr),
         ("quote", quote),
@@ -153,6 +174,7 @@ pub fn global_env() -> Env {
         ("let", lisp_let),
         ("lambda", lambda),
         ("defun", defun),
+        ("defmacro", defmacro),
         ("+", add),
         ("-", sub),
         ("*", mul),
@@ -175,29 +197,34 @@ mod tests {
     use super::*;
     use crate::reader;
 
-    fn assert_eval_with_env(mut env: Env, sexpr: &str, expr: Rc<Expr>) {
+    fn assert_eval_with_env(env: &mut Env, sexpr: &str, expr: Rc<Expr>) {
         let mut r = reader::Reader::new(sexpr.bytes());
         let mut output = nil();
         while let Some(x) = r.read().unwrap() {
-            output = eval(&mut env, &x).unwrap();
+            output = eval(env, &x).unwrap();
         }
         assert_eq!(output, expr);
     }
 
     fn assert_eval(sexpr: &str, expr: Rc<Expr>) {
-        assert_eval_with_env(global_env(), sexpr, expr);
+        assert_eval_with_env(&mut global_env(), sexpr, expr);
     }
 
     #[test]
     fn test_eval_cons() {
-        assert_eval("(cons 1 2)", lisp::cons(number(1), number(2)));
+        assert_eval("(let ((x 2)) (cons 1 x))", lisp::cons(number(1), number(2)));
+    }
+
+    #[test]
+    fn test_eval_list() {
+        assert_eval("(let ((x 2)) (list 1 x))", lisp::list(&[number(1), number(2)]));
     }
 
     #[test]
     fn test_eval_eq() {
         assert_eval("(eq 10 10)", lisp::t());
 
-        let mut env = global_env();
+        let env = &mut global_env();
         env.insert(symbol("x"), number(10));
         assert_eval_with_env(env, "(eq x 10)", lisp::t());
     }
@@ -256,5 +283,14 @@ mod tests {
 ",
             number(55),
         );
+    }
+
+    #[test]
+    fn test_eval_defmacro() {
+        let env = &mut global_env();
+        assert_eval_with_env(env, "(defmacro myand (a b) (list 'cond (list a b))) t", lisp::t());
+        assert_eval_with_env(env, "(myand 'moo 'woo)", symbol("woo"));
+        assert_eval_with_env(env, "(myand nil 'woo)", nil());
+        assert_eval_with_env(env, "(myand 'moo nil)", nil());
     }
 }
