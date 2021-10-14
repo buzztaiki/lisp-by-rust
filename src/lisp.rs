@@ -32,7 +32,7 @@ pub struct Builtin {
 
 #[derive(Debug)]
 pub struct Function {
-    env: Env,
+    vars: Vec<(Rc<Expr>, Rc<Expr>)>,
     name: String,
     argnames: Rc<Expr>,
     body: Rc<Expr>,
@@ -40,7 +40,7 @@ pub struct Function {
 
 #[derive(Debug)]
 pub struct MacroForm {
-    env: Env,
+    vars: Vec<(Rc<Expr>, Rc<Expr>)>,
     name: String,
     argnames: Rc<Expr>,
     body: Rc<Expr>,
@@ -138,18 +138,18 @@ impl FunctionExpr {
         }))
     }
 
-    pub fn function(env: Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
+    pub fn function(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
         Rc::new(Self::Function(Function {
-            env,
+            vars: env.capture(),
             name: name.to_string(),
             argnames,
             body,
         }))
     }
 
-    pub fn macro_form(env: Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
+    pub fn macro_form(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
         Rc::new(Self::MacroForm(MacroForm {
-            env,
+            vars: env.capture(),
             name: name.to_string(),
             argnames,
             body,
@@ -201,22 +201,32 @@ impl fmt::Debug for Builtin {
 
 impl Function {
     fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let mut new_env = self.env.new_scope();
+        let mut vars = Vec::new();
         for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
-            new_env.insert(k?, v?);
+            vars.push((k?, v?));
         }
-        eval::eval(&mut new_env, &*self.body.car()?)
+
+        let scope = &mut env.enter_scope();
+        scope.extend(self.vars.iter().cloned());
+        scope.extend(vars.into_iter());
+        eval::eval(scope, &*self.body.car()?)
     }
 }
 
 impl MacroForm {
     fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let mut new_env = self.env.new_scope();
+        let mut vars = Vec::new();
         for (k, v) in self.argnames.iter().zip(args.iter()) {
-            new_env.insert(k?, v?);
+            vars.push((k?, v?));
         }
-        let body = eval::eval(&mut new_env, &*self.body.car()?)?;
-        eval::eval(env, &body)
+
+        let new_body = {
+            let scope = &mut env.enter_scope();
+            scope.extend(self.vars.iter().cloned());
+            scope.extend(vars.into_iter());
+            eval::eval(scope, &*self.body.car()?)?
+        };
+        eval::eval(env, &new_body)
     }
 }
 
@@ -276,7 +286,11 @@ pub struct Iter<'a> {
 
 impl<'a> Iter<'a> {
     fn new(init: &'a Expr) -> Self {
-        Self { init, xs: nil(), state: IterState::Init }
+        Self {
+            init,
+            xs: nil(),
+            state: IterState::Init,
+        }
     }
 
     fn current(&self) -> Option<&Expr> {
@@ -301,11 +315,11 @@ impl<'a> Iterator for Iter<'a> {
                 self.xs = rest;
                 self.state = IterState::Cont;
                 Some(Ok(head))
-            },
+            }
             Err(e) => {
                 self.state = IterState::Stop;
                 Some(Err(e))
-            },
+            }
         }
     }
 }

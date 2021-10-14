@@ -55,18 +55,21 @@ fn cond(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 
 fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
-    let mut new_env = env.new_scope();
+    let mut vars = env.capture();
     for x in args.car()?.iter() {
         let x = x?;
-        new_env.insert(x.car()?, eval(env, &*x.cadr()?)?);
+        vars.push((x.car()?, eval(env, &*x.cadr()?)?));
     }
-    eval(&mut new_env, &*args.cadr()?)
+
+    let scope = &mut env.enter_scope();
+    scope.extend(vars.into_iter());
+    eval(scope, &*args.cadr()?)
 }
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
     let f = function(FunctionExpr::function(
-        env.new_scope(),
+        env,
         "lambda",
         args.car()?,
         args.cdr()?,
@@ -79,12 +82,12 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     let name = args.car()?;
     let args = args.cdr()?;
     let f = function(FunctionExpr::function(
-        env.new_scope(),
+        env,
         &name.to_string(),
         args.car()?,
         args.cdr()?,
     ));
-    env.insert(name, f.clone());
+    env.insert_global(name, f.clone());
     Ok(f)
 }
 
@@ -93,12 +96,12 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     let name = args.car()?;
     let args = args.cdr()?;
     let f = function(FunctionExpr::macro_form(
-        env.new_scope(),
+        env,
         &name.to_string(),
         args.car()?,
         args.cdr()?,
     ));
-    env.insert(name, f.clone());
+    env.insert_global(name, f.clone());
     Ok(f)
 }
 
@@ -217,7 +220,10 @@ mod tests {
 
     #[test]
     fn test_eval_list() {
-        assert_eval("(let ((x 2)) (list 1 x))", lisp::list(&[number(1), number(2)]));
+        assert_eval(
+            "(let ((x 2)) (list 1 x))",
+            lisp::list(&[number(1), number(2)]),
+        );
     }
 
     #[test]
@@ -286,11 +292,37 @@ mod tests {
     }
 
     #[test]
+    fn test_eval_defun_in_closure() {
+        assert_eval(
+            r"
+(let ((x 1)) (defun f (y) (+ x y)))
+(f 2)
+",
+            number(3),
+        );
+    }
+
+    #[test]
     fn test_eval_defmacro() {
         let env = &mut global_env();
-        assert_eval_with_env(env, "(defmacro myand (a b) (list 'cond (list a b))) t", lisp::t());
+        assert_eval_with_env(
+            env,
+            "(defmacro myand (a b) (list 'cond (list a b))) t",
+            lisp::t(),
+        );
         assert_eval_with_env(env, "(myand 'moo 'woo)", symbol("woo"));
         assert_eval_with_env(env, "(myand nil 'woo)", nil());
         assert_eval_with_env(env, "(myand 'moo nil)", nil());
+    }
+
+    #[test]
+    fn test_eval_defmacro_in_closure() {
+        assert_eval(
+            r"
+(let ((x 1)) (defmacro m () (list '+ x 'x)))
+(let ((x 2)) (m))
+",
+            number(3),
+        );
     }
 }
