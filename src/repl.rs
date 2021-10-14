@@ -11,7 +11,7 @@ pub fn repl(mut env: Env, input: impl io::Read) -> Result<()> {
     loop {
         match reader.read() {
             Ok(expr) => match expr {
-                Some(expr) => match eval::eval(&mut env, expr) {
+                Some(expr) => match eval::eval(&mut env, &expr) {
                     Ok(expr) => println!("{}", expr),
                     Err(e) => eprintln!("error: eval: {}", e),
                 },

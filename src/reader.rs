@@ -40,7 +40,7 @@ impl<Iter: Iterator<Item = u8>> Reader<Iter> {
                 continue;
             }
 
-            if cdr != nil() {
+            if !cdr.is_nil() {
                 break Err(Error("too many exprs after dot".to_string()));
             }
             exprs.push(Self::noeof(self.read())?);

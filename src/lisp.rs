@@ -15,7 +15,7 @@ pub enum Expr {
     Cons(Rc<Expr>, Rc<Expr>),
     Symbol(String),
     Number(i64),
-    Function(Function),
+    Function(Rc<Function>),
 }
 
 #[derive(Debug)]
@@ -25,17 +25,77 @@ pub struct Function {
     body: Rc<Expr>,
 }
 
+impl Expr {
+    pub fn car(&self) -> Result<Rc<Expr>> {
+        match self {
+            Expr::Cons(car, _) => Ok(car.clone()),
+            Expr::Symbol(v) if v == NIL => Ok(nil()),
+            _ => Err(Error(format!("expect list: {}", self))),
+        }
+    }
+
+    pub fn cdr(&self) -> Result<Rc<Expr>> {
+        match self {
+            Expr::Cons(_, cdr) => Ok(cdr.clone()),
+            Expr::Symbol(v) if v == NIL => Ok(nil()),
+            _ => Err(Error(format!("expect list: {}", self))),
+        }
+    }
+
+    pub fn cadr(&self) -> Result<Rc<Expr>> {
+        self.cdr()?.car()
+    }
+
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Expr::Symbol(v) if v == NIL)
+    }
+
+    pub fn is_atom(&self) -> bool {
+        matches!(self, Expr::Symbol(_) | Expr::Number(_))
+    }
+
+    pub fn is_cons(&self) -> bool {
+        matches!(self, Expr::Cons(_, _))
+    }
+
+    pub fn lisp_eq(&self, other: &Expr) -> bool {
+        match (self, other) {
+            (Expr::Symbol(x1), Expr::Symbol(y1)) => x1 == y1,
+            (Expr::Number(x1), Expr::Number(y1)) => x1 == y1,
+            _ => false,
+        }
+    }
+
+    pub fn from_bool(x: bool) -> Rc<Expr> {
+        if x {
+            t()
+        } else {
+            nil()
+        }
+    }
+}
+
+pub trait RcExprExt {
+    fn iter(&self) -> Iter;
+}
+
+impl RcExprExt for Rc<Expr> {
+    fn iter(&self) -> Iter {
+        Iter { xs: self.clone() }
+    }
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Cons(head, rest) => {
                 write!(f, "({}", head)?;
                 let mut rest = rest.clone();
-                while consp(rest.clone()) {
-                    write!(f, " {}", car(rest.clone()).map_err(|_| fmt::Error)?)?;
-                    rest = cdr(rest).map_err(|_| fmt::Error)?;
+                while rest.clone().is_cons() {
+                    write!(f, " {}", rest.car().map_err(|_| fmt::Error)?)?;
+                    rest = rest.cdr().map_err(|_| fmt::Error)?;
                 }
-                if rest != nil() {
+                if !rest.is_nil() {
                     write!(f, " . {}", rest)?;
                 }
 
@@ -50,20 +110,20 @@ impl fmt::Display for Expr {
 }
 
 impl Function {
-    pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
-        Self {
+    pub fn new(env: Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
+        Rc::new(Self {
             env,
             argnames,
             body,
-        }
+        })
     }
 
-    pub fn apply(&self, env: &mut Env, args: Rc<Expr>) -> Result<Rc<Expr>> {
+    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         let mut new_env = self.env.new_scope();
-        for (k, v) in iter(self.argnames.clone()).zip(iter(eval::evlis(env, args)?)) {
+        for (k, v) in self.argnames.iter().zip(eval::evlis(env, args)?.iter()) {
             new_env.insert(k?, v?);
         }
-        eval::eval(&mut new_env, car(self.body.clone())?)
+        eval::eval(&mut new_env, &*self.body.car()?)
     }
 }
 
@@ -93,16 +153,22 @@ pub fn number(x: i64) -> Rc<Expr> {
     Rc::new(Expr::Number(x))
 }
 
-pub fn function(x: Function) -> Rc<Expr> {
+pub fn function(x: Rc<Function>) -> Rc<Expr> {
     Rc::new(Expr::Function(x))
 }
 
+pub const NIL: &str = "nil";
+pub const T: &str = "t";
+
+thread_local!(static NIL_SYM: Rc<Expr> = symbol(NIL));
+thread_local!(static T_SYM: Rc<Expr> = symbol(T));
+
 pub fn nil() -> Rc<Expr> {
-    symbol("nil")
+    NIL_SYM.with(|f| f.clone())
 }
 
 pub fn t() -> Rc<Expr> {
-    symbol("t")
+   T_SYM.with(|f| f.clone())
 }
 
 pub fn cons_list(xs: &[Rc<Expr>], tail: Rc<Expr>) -> Rc<Expr> {
@@ -117,58 +183,14 @@ pub fn list(xs: &[Rc<Expr>]) -> Rc<Expr> {
     cons_list(xs, nil())
 }
 
-pub fn car(x: Rc<Expr>) -> Result<Rc<Expr>> {
-    match x.as_ref() {
-        Expr::Cons(car, _) => Ok(car.clone()),
-        Expr::Symbol(_) if x == nil() => Ok(x),
-        _ => Err(Error(format!("expect list: {}", x))),
-    }
-}
-
-pub fn cdr(x: Rc<Expr>) -> Result<Rc<Expr>> {
-    match x.as_ref() {
-        Expr::Cons(_, cdr) => Ok(cdr.clone()),
-        Expr::Symbol(_) if x == nil() => Ok(x),
-        _ => Err(Error(format!("expect list: {}", x))),
-    }
-}
-
-pub fn atom(x: Rc<Expr>) -> bool {
-    matches!(x.as_ref(), Expr::Symbol(_) | Expr::Number(_))
-}
-
-pub fn consp(x: Rc<Expr>) -> bool {
-    matches!(x.as_ref(), Expr::Cons(_, _))
-}
-
-pub fn eq(x: Rc<Expr>, y: Rc<Expr>) -> bool {
-    match (x.as_ref(), y.as_ref()) {
-        (Expr::Symbol(x1), Expr::Symbol(y1)) => x1 == y1,
-        (Expr::Number(x1), Expr::Number(y1)) => x1 == y1,
-        _ => false,
-    }
-}
-
-pub fn bool_to_expr(x: bool) -> Rc<Expr> {
-    if x {
-        t()
-    } else {
-        nil()
-    }
-}
-
-pub fn iter(xs: Rc<Expr>) -> Iter {
-    Iter { xs }
-}
-
 pub struct Iter {
     xs: Rc<Expr>,
 }
 
 impl Iter {
     fn next_item(&mut self) -> Result<Rc<Expr>> {
-        let x = car(self.xs.clone())?;
-        self.xs = cdr(self.xs.clone())?;
+        let x = self.xs.car()?;
+        self.xs = self.xs.cdr()?;
         Ok(x)
     }
 }
@@ -177,7 +199,7 @@ impl Iterator for Iter {
     type Item = Result<Rc<Expr>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.xs == nil() {
+        if self.xs.is_nil() {
             None
         } else {
             let x = self.next_item();
@@ -203,22 +225,22 @@ mod tests {
 
     #[test]
     fn test_car() {
-        assert_eq!(car(cons(number(1), number(2))).unwrap(), number(1));
-        assert_eq!(car(nil()).unwrap(), nil());
-        assert!(car(number(1)).is_err());
-        assert!(car(symbol("moo")).is_err());
+        assert_eq!(cons(number(1), number(2)).car().unwrap(), number(1));
+        assert_eq!(nil().car().unwrap(), nil());
+        assert!(number(1).car().is_err());
+        assert!(symbol("moo").car().is_err());
     }
 
     #[test]
     fn test_cdr() {
-        assert_eq!(cdr(cons(number(1), number(2))).unwrap(), number(2));
+        assert_eq!(cons(number(1), number(2)).cdr().unwrap(), number(2));
         assert_eq!(
-            cdr(list(&[number(1), number(2)])).unwrap(),
+            list(&[number(1), number(2)]).cdr().unwrap(),
             list(&[number(2)])
         );
-        assert_eq!(cdr(nil()).unwrap(), nil());
-        assert!(cdr(number(1)).is_err());
-        assert!(cdr(symbol("moo")).is_err());
+        assert_eq!(nil().cdr().unwrap(), nil());
+        assert!(number(1).cdr().is_err());
+        assert!(symbol("moo").cdr().is_err());
     }
 
     #[test]
@@ -240,13 +262,13 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        let xs = list((0..5).map(number).collect::<Vec<_>>().as_ref());
+        let xs = list(&(0..5).map(number).collect::<Vec<_>>());
         assert_eq!(
-            iter(xs).flatten().collect::<Vec<_>>(),
+            xs.iter().flatten().collect::<Vec<_>>(),
             (0..5).map(number).collect::<Vec<_>>()
         );
 
         let xs = cons(number(1), number(2));
-        assert_eq!(iter(xs).flatten().collect::<Vec<_>>(), vec![number(1)]);
+        assert_eq!(xs.iter().flatten().collect::<Vec<_>>(), vec![number(1)]);
     }
 }
