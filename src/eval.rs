@@ -48,7 +48,11 @@ fn evlet(env: &mut Env, xs: &Expr) -> Result<Rc<Expr>> {
 
 fn evlambda(env: &Env, xs: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
-    let f = function(Function::new(env.new_scope(), xs.car()?, xs.cdr()?));
+    let f = function(FunctionExpr::function(
+        env.new_scope(),
+        xs.car()?,
+        xs.cdr()?,
+    ));
     Ok(f)
 }
 
@@ -85,7 +89,9 @@ fn ev_number_cmp(env: &mut Env, f: impl Fn(i64, i64) -> bool, xs: &Expr) -> Resu
     let x = xs
         .next()
         .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
-    let res = xs.try_fold(x, |a, b| a.and_then(|a| b.map(|b| f(a, b).then(|| b))).transpose());
+    let res = xs.try_fold(x, |a, b| {
+        a.and_then(|a| b.map(|b| f(a, b).then(|| b))).transpose()
+    });
     res.transpose().map(|x| Expr::from_bool(x.is_some()))
 }
 
