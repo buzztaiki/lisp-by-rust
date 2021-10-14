@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::env::Env;
 use crate::eval::{self, eval, evlis};
 use crate::lisp::{
-    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, RcExprExt, Result,
+    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
 };
 
 fn cons(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -99,13 +99,15 @@ fn number_op(
     f: impl Fn(i64, i64) -> i64,
     init: i64,
 ) -> Result<Rc<Expr>> {
-    let args = map_number(evlis(env, args)?);
+    let evargs = evlis(env, args)?;
+    let args = map_number(&evargs);
     let res = args.reduce(|a, b| a.and_then(|a| b.map(|b| f(a, b))));
     res.unwrap_or(Ok(init)).map(number)
 }
 
 fn number_cmp(env: &mut Env, args: &Expr, f: impl Fn(i64, i64) -> bool) -> Result<Rc<Expr>> {
-    let mut args = map_number(evlis(env, args)?);
+    let evargs = evlis(env, args)?;
+    let mut args = map_number(&evargs);
     let x = args
         .next()
         .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
