@@ -55,18 +55,25 @@ fn cond(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 
 fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (let ((x 1) (y 2)) (cons x y))
-    let mut new_env = env.new_scope();
+    let mut vars = env.capture();
     for x in args.car()?.iter() {
         let x = x?;
-        new_env.insert(x.car()?, eval(env, &*x.cadr()?)?);
+        vars.push((x.car()?, eval(env, &*x.cadr()?)?));
     }
-    eval(&mut new_env, &*args.cadr()?)
+
+    let body = &*args.cadr()?;
+    env.enter_scope();
+    env.extend(vars.into_iter());
+
+    let res = eval(env, body);
+    env.exit_scope();
+    res
 }
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
     let f = function(FunctionExpr::function(
-        env.new_scope(),
+        env,
         "lambda",
         args.car()?,
         args.cdr()?,
@@ -79,12 +86,12 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     let name = args.car()?;
     let args = args.cdr()?;
     let f = function(FunctionExpr::function(
-        env.new_scope(),
+        env,
         &name.to_string(),
         args.car()?,
         args.cdr()?,
     ));
-    env.insert(name, f.clone());
+    env.insert_global(name, f.clone());
     Ok(f)
 }
 
@@ -93,12 +100,12 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     let name = args.car()?;
     let args = args.cdr()?;
     let f = function(FunctionExpr::macro_form(
-        env.new_scope(),
+        env,
         &name.to_string(),
         args.car()?,
         args.cdr()?,
     ));
-    env.insert(name, f.clone());
+    env.insert_global(name, f.clone());
     Ok(f)
 }
 
