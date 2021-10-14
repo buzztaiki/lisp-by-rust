@@ -2,11 +2,7 @@ use std::env::args;
 use std::fs::File;
 use std::io::stdin;
 
-mod env;
-mod eval;
-mod lisp;
-mod reader;
-mod repl;
+use lib::{eval, lisp, repl};
 
 fn main() -> lisp::Result<()> {
     if let Some(fname) = args().nth(1) {
