@@ -13,6 +13,10 @@ fn cons(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     ))
 }
 
+fn list(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    eval::evlis(env, args)
+}
+
 fn car(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     eval(env, &*args.car()?)?.car()
 }
@@ -146,6 +150,7 @@ def_number_cmp!(ge, >=);
 pub fn global_env() -> Env {
     let builtins: Vec<(&str, BuiltinFn)> = vec![
         ("cons", cons),
+        ("list", list),
         ("car", car),
         ("cdr", cdr),
         ("quote", quote),
@@ -187,12 +192,17 @@ mod tests {
     }
 
     fn assert_eval(sexpr: &str, expr: Rc<Expr>) {
-        assert_eval_with_env(global_env(), sexpr, expr);
+        assert_eval_with_env(&mut global_env(), sexpr, expr);
     }
 
     #[test]
     fn test_eval_cons() {
-        assert_eval("(cons 1 2)", lisp::cons(number(1), number(2)));
+        assert_eval("(let ((x 2)) (cons 1 x))", lisp::cons(number(1), number(2)));
+    }
+
+    #[test]
+    fn test_eval_list() {
+        assert_eval("(let ((x 2)) (list 1 x))", lisp::list(&[number(1), number(2)]));
     }
 
     #[test]
