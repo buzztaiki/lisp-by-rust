@@ -164,6 +164,17 @@ def_number_cmp!(gt, >);
 def_number_cmp!(le, <=);
 def_number_cmp!(ge, >=);
 
+fn prin1(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    let x = eval(env, &*args.car()?)?;
+    print!("{}", x);
+    Ok(x)
+}
+
+fn terpri(_env: &mut Env, _args: &Expr) -> Result<Rc<Expr>> {
+    println!();
+    Ok(lisp::t())
+}
+
 pub fn global_env() -> Env {
     let builtins: Vec<(&str, BuiltinFn)> = vec![
         ("cons", cons),
@@ -186,6 +197,8 @@ pub fn global_env() -> Env {
         (">", gt),
         ("<=", le),
         (">=", ge),
+        ("prin1", prin1),
+        ("terpri", terpri),
     ];
 
     let mut env = eval::global_env();
