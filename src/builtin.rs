@@ -242,6 +242,7 @@ mod tests {
             lisp::cons(number(1), number(2)),
         );
         assert_eval("((lambda (a) ((lambda (b) b) a)) 'x)", symbol("x"));
+        assert_eval("((lambda (f x) (f x x)) + 1)", number(2));
     }
 
     #[test]
