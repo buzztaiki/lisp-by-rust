@@ -66,6 +66,14 @@ impl<Iter: Iterator<Item = u8>> Reader<Iter> {
     }
 }
 
+impl<Iter: Iterator<Item = u8>> Iterator for Reader<Iter> {
+    type Item = Result<Rc<Expr>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.read().transpose()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,5 +118,10 @@ mod tests {
         );
 
         assert!(Reader::new("(10 . 20 30)".bytes()).read().is_err());
+    }
+
+    #[test]
+    fn test_as_iterator() {
+        assert_eq!(Reader::new("1 2 3".bytes()).flatten().collect::<Vec<_>>(), vec![number(1), number(2), number(3)]);
     }
 }
