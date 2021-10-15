@@ -8,7 +8,7 @@ pub fn eval(env: &mut Env, x: &Expr) -> Result<Rc<Expr>> {
         Expr::Cons(car, cdr) => apply(env, car, cdr),
         Expr::Symbol(_) => env
             .get(x)
-            .ok_or_else(|| Error(format!("symbol not found: {}", x))),
+            .ok_or_else(|| Error(format!("unbound variable: {}", x))),
         Expr::Number(v) => Ok(number(*v)),
         Expr::Function(f) => Ok(function(f.clone())),
     }

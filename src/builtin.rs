@@ -284,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "symbol not found: y")]
+    #[should_panic(expected = "unbound variable: y")]
     fn test_eval_closure_uncaptured() {
         assert_eval(
             "(let ((f (let ((x 1)) (lambda () (+ x y))))) (let ((y 10)) (f 10)))",
