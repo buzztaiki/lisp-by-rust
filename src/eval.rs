@@ -61,17 +61,14 @@ mod tests {
     use super::*;
     use crate::reader;
 
-    fn assert_eval_with_env(mut env: Env, sexpr: &str, expr: Rc<Expr>) {
-        let mut r = reader::Reader::new(sexpr.bytes());
-        let mut output = nil();
-        while let Some(x) = r.read().unwrap() {
-            output = eval(&mut env, &x).unwrap();
-        }
+    fn assert_eval_with_env(env: &mut Env, sexpr: &str, expr: Rc<Expr>) {
+        let r = reader::Reader::new(sexpr.bytes());
+        let output = r.fold(nil(), |_, x| eval(env, &x.unwrap()).unwrap());
         assert_eq!(output, expr);
     }
 
     fn assert_eval(sexpr: &str, expr: Rc<Expr>) {
-        assert_eval_with_env(global_env(), sexpr, expr);
+        assert_eval_with_env(&mut global_env(), sexpr, expr);
     }
 
     #[test]

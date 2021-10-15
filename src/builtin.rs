@@ -214,11 +214,8 @@ mod tests {
     use crate::reader;
 
     fn assert_eval_with_env(env: &mut Env, sexpr: &str, expr: Rc<Expr>) {
-        let mut r = reader::Reader::new(sexpr.bytes());
-        let mut output = nil();
-        while let Some(x) = r.read().unwrap() {
-            output = eval(env, &x).unwrap();
-        }
+        let r = reader::Reader::new(sexpr.bytes());
+        let output = r.fold(nil(), |_, x| eval(env, &x.unwrap()).unwrap());
         assert_eq!(output, expr);
     }
 
