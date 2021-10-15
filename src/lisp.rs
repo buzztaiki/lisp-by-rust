@@ -125,7 +125,7 @@ impl fmt::Display for Expr {
             }
             Expr::Symbol(x) => write!(f, "{}", x),
             Expr::Number(x) => write!(f, "{}", x),
-            Expr::Function(x) => write!(f, "<function {}>", x.name()),
+            Expr::Function(x) => write!(f, "{}", x),
         }
     }
 }
@@ -164,6 +164,14 @@ impl FunctionExpr {
         }
     }
 
+    pub fn kind(&self) -> &str {
+        match self {
+            FunctionExpr::Builtin(_) => "builtin",
+            FunctionExpr::Function(_) => "function",
+            FunctionExpr::MacroForm(_) => "macro",
+        }
+    }
+
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         match self {
             FunctionExpr::Builtin(x) => x.apply(env, args),
@@ -184,6 +192,12 @@ impl Eq for FunctionExpr {}
 impl std::hash::Hash for FunctionExpr {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         std::ptr::hash(self as *const Self, state);
+    }
+}
+
+impl fmt::Display for FunctionExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<{} {}>", self.kind(), self.name())
     }
 }
 
@@ -361,6 +375,20 @@ mod tests {
         assert_eq!(
             list(&[number(10), list(&[number(20), number(30)]), number(40)]).to_string(),
             "(10 (20 30) 40)"
+        );
+
+        fn f(_: &mut Env, _: &Expr) -> Result<Rc<Expr>> { Ok(nil()) }
+        assert_eq!(
+            function(FunctionExpr::builtin("moo", f)).to_string(),
+            "<builtin moo>"
+        );
+        assert_eq!(
+            function(FunctionExpr::function(&Env::new(), "woo", nil(), nil())).to_string(),
+            "<function woo>"
+        );
+        assert_eq!(
+            function(FunctionExpr::macro_form(&Env::new(), "goo", nil(), nil())).to_string(),
+            "<macro goo>"
         );
     }
 
