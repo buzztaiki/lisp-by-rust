@@ -29,6 +29,11 @@ pub fn bind_args(env: &mut Env, names: &Expr, values: &Expr) -> Result<()> {
     Ok(())
 }
 
+pub fn eval_body(env: &mut Env, body: &Expr) -> Result<Rc<Expr>> {
+    body.iter()
+        .try_fold(nil(), |_, x| x.and_then(|x| eval(env, &x)))
+}
+
 pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     match func {
         Expr::Symbol(_) => {
@@ -82,5 +87,12 @@ mod tests {
     #[test]
     fn test_eval_t() {
         assert_eval("t", t());
+    }
+
+    #[test]
+    fn test_eval_body() {
+        let env = &mut global_env();
+        let body = list(&[number(1), number(2)]);
+        assert_eq!(eval_body(env, &body).unwrap(), number(2));
     }
 }

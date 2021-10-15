@@ -205,7 +205,7 @@ impl Function {
         let scope = &mut env.enter_scope();
         scope.extend(self.vars.iter().cloned());
         eval::bind_args(scope, &self.argnames, &evargs)?;
-        eval::eval(scope, &*self.body.car()?)
+        eval::eval_body(scope, &self.body)
     }
 }
 
@@ -215,7 +215,7 @@ impl MacroForm {
             let scope = &mut env.enter_scope();
             scope.extend(self.vars.iter().cloned());
             eval::bind_args(scope, &self.argnames, &args)?;
-            eval::eval(scope, &*self.body.car()?)?
+            eval::eval_body(scope, &self.body)?
         };
         eval::eval(env, &new_body)
     }

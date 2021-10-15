@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::env::Env;
-use crate::eval::{self, eval, evlis};
+use crate::eval::{self, eval, eval_body, evlis};
 use crate::lisp::{
     self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
 };
@@ -46,7 +46,7 @@ fn cond(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     } else {
         let x = args.car()?;
         if !eval(env, &*x.car()?)?.is_nil() {
-            eval(env, &*x.cadr()?)
+            eval_body(env, &*x.cdr()?)
         } else {
             cond(env, &*args.cdr()?)
         }
@@ -63,7 +63,7 @@ fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 
     let scope = &mut env.enter_scope();
     scope.extend(vars.into_iter());
-    eval(scope, &*args.cadr()?)
+    eval_body(scope, &*args.cdr()?)
 }
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
