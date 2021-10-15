@@ -105,7 +105,7 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     Ok(f)
 }
 
-fn map_number<'a>(args: &'a Expr) -> impl Iterator<Item = Result<i64>> + 'a {
+fn map_number(args: &Expr) -> impl Iterator<Item = Result<i64>> + '_ {
     args.iter().map(|x| {
         x.and_then(|x| match &*x {
             Expr::Number(x) => Ok(*x),

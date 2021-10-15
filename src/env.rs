@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::lisp::Expr;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Env {
     global: Map,
     stack: Vec<Map>,
@@ -48,10 +48,7 @@ impl<'a> DerefMut for Scope<'a> {
 
 impl Env {
     pub fn new() -> Self {
-        Self {
-            global: Map::new(),
-            stack: Vec::new(),
-        }
+        Self::default()
     }
 
     pub fn insert(&mut self, k: Rc<Expr>, v: Rc<Expr>) {

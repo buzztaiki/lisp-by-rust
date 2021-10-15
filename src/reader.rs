@@ -122,6 +122,9 @@ mod tests {
 
     #[test]
     fn test_as_iterator() {
-        assert_eq!(Reader::new("1 2 3".bytes()).flatten().collect::<Vec<_>>(), vec![number(1), number(2), number(3)]);
+        assert_eq!(
+            Reader::new("1 2 3".bytes()).flatten().collect::<Vec<_>>(),
+            vec![number(1), number(2), number(3)]
+        );
     }
 }

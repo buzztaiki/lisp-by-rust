@@ -228,7 +228,7 @@ impl MacroForm {
         let new_body = {
             let scope = &mut env.enter_scope();
             scope.extend(self.vars.iter().cloned());
-            eval::bind_args(scope, &self.argnames, &args)?;
+            eval::bind_args(scope, &self.argnames, args)?;
             eval::eval_body(scope, &self.body)?
         };
         eval::eval(env, &new_body)
@@ -377,7 +377,9 @@ mod tests {
             "(10 (20 30) 40)"
         );
 
-        fn f(_: &mut Env, _: &Expr) -> Result<Rc<Expr>> { Ok(nil()) }
+        fn f(_: &mut Env, _: &Expr) -> Result<Rc<Expr>> {
+            Ok(nil())
+        }
         assert_eq!(
             function(FunctionExpr::builtin("moo", f)).to_string(),
             "<builtin moo>"
