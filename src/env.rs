@@ -52,19 +52,13 @@ impl Env {
     }
 
     pub fn insert(&mut self, k: Rc<Expr>, v: Rc<Expr>) {
-        if let Some(scope) = self.stack.last_mut() {
-            scope.insert(k, v);
-        } else {
-            self.global.insert(k, v);
-        }
+        let map = self.stack.last_mut().unwrap_or(&mut self.global);
+        map.insert(k, v);
     }
 
     pub fn extend(&mut self, iter: impl Iterator<Item = (Rc<Expr>, Rc<Expr>)>) {
-        if let Some(scope) = self.stack.last_mut() {
-            scope.extend(iter);
-        } else {
-            self.global.extend(iter);
-        }
+        let map = self.stack.last_mut().unwrap_or(&mut self.global);
+        map.extend(iter);
     }
 
     pub fn insert_global(&mut self, k: Rc<Expr>, v: Rc<Expr>) {
@@ -72,12 +66,8 @@ impl Env {
     }
 
     pub fn get(&self, k: &Expr) -> Option<Rc<Expr>> {
-        let x = self
-            .stack
-            .last()
-            .and_then(|scope| scope.get(k))
-            .or_else(|| self.global.get(k));
-        x.cloned()
+        let value = self.stack.last().and_then(|map| map.get(k));
+        value.or_else(|| self.global.get(k)).cloned()
     }
 
     pub fn enter_scope(&mut self) -> Scope {
@@ -90,12 +80,10 @@ impl Env {
     }
 
     pub fn capture(&self) -> Vec<(Rc<Expr>, Rc<Expr>)> {
-        self.stack
-            .last()
-            .iter()
-            .flat_map(|x| x.iter())
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect::<Vec<_>>()
+        match self.stack.last() {
+            Some(map) => map.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            None => Vec::new(),
+        }
     }
 }
 
