@@ -37,10 +37,12 @@ pub fn eval_body(env: &mut Env, body: &Expr) -> Result<Rc<Expr>> {
 pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     match func {
         Expr::Symbol(_) => {
-            let func = eval(env, func)?;
-            apply(env, &func, args)
+            match env.get_function(func) {
+                Some(x) => apply(env, &x, args),
+                None => Err(Error(format!("unbound function: {}", func)))
+            }
         }
-        Expr::Cons(_, _) => {
+        Expr::Cons(x, _) if x.to_string() == "lambda" =>  {
             let func = eval(env, func)?;
             apply(env, &func, args)
         }
@@ -51,8 +53,8 @@ pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
 
 pub fn global_env() -> Env {
     let mut env = Env::new();
-    env.insert(nil(), nil());
-    env.insert(t(), t());
+    env.insert_global(nil(), nil());
+    env.insert_global(t(), t());
     env
 }
 

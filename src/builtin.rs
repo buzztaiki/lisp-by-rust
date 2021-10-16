@@ -87,7 +87,7 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         args.car()?,
         args.cdr()?,
     ));
-    env.insert_global(name, f.clone());
+    env.insert_function(name, f.clone());
     Ok(f)
 }
 
@@ -101,7 +101,7 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         args.car()?,
         args.cdr()?,
     ));
-    env.insert_global(name, f.clone());
+    env.insert_function(name, f.clone());
     Ok(f)
 }
 
@@ -203,7 +203,7 @@ pub fn global_env() -> Env {
 
     let mut env = eval::global_env();
     for (k, v) in builtins {
-        env.insert(symbol(k), function(FunctionExpr::builtin(k, v)));
+        env.insert_function(symbol(k), function(FunctionExpr::builtin(k, v)));
     }
     env
 }

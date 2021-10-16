@@ -7,6 +7,7 @@ use crate::lisp::Expr;
 #[derive(Debug, Default)]
 pub struct Env {
     global: Map,
+    function: Map,
     stack: Vec<Map>,
 }
 
@@ -65,9 +66,17 @@ impl Env {
         self.global.insert(k, v);
     }
 
+    pub fn insert_function(&mut self, k: Rc<Expr>, v: Rc<Expr>) {
+        self.function.insert(k, v);
+    }
+
     pub fn get(&self, k: &Expr) -> Option<Rc<Expr>> {
         let value = self.stack.last().and_then(|map| map.get(k));
         value.or_else(|| self.global.get(k)).cloned()
+    }
+
+    pub fn get_function(&self, k: &Expr) -> Option<Rc<Expr>> {
+        self.function.get(k).cloned()
     }
 
     pub fn enter_scope(&mut self) -> Scope {
