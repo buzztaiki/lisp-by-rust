@@ -87,7 +87,7 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         args.car()?,
         args.cdr()?,
     ));
-    env.insert_global(name, f.clone());
+    env.insert_function(name, f.clone());
     Ok(f)
 }
 
@@ -101,7 +101,7 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         args.car()?,
         args.cdr()?,
     ));
-    env.insert_global(name, f.clone());
+    env.insert_function(name, f.clone());
     Ok(f)
 }
 
@@ -175,6 +175,14 @@ fn terpri(_env: &mut Env, _args: &Expr) -> Result<Rc<Expr>> {
     Ok(lisp::t())
 }
 
+fn funcall(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    let func = eval(env, &*args.car()?)?;
+    // let evargs = evlis(env, &*args.cdr()?)?;
+    // let qs = lisp::mapcar(|x| Ok(lisp::list(&[symbol("quote"), x])), &evargs)?;
+    // eval::apply(env, &func, &qs)
+    eval::apply(env, &func, &*args.cdr()?)
+}
+
 pub fn global_env() -> Env {
     let builtins: Vec<(&str, BuiltinFn)> = vec![
         ("cons", cons),
@@ -199,11 +207,12 @@ pub fn global_env() -> Env {
         (">=", ge),
         ("prin1", prin1),
         ("terpri", terpri),
+        ("funcall", funcall),
     ];
 
     let mut env = eval::global_env();
     for (k, v) in builtins {
-        env.insert(symbol(k), function(FunctionExpr::builtin(k, v)));
+        env.insert_function(symbol(k), function(FunctionExpr::builtin(k, v)));
     }
     env
 }
@@ -252,7 +261,7 @@ mod tests {
             lisp::cons(number(1), number(2)),
         );
         assert_eval("((lambda (a) ((lambda (b) b) a)) 'x)", symbol("x"));
-        assert_eval("((lambda (f x) (f x x)) + 1)", number(2));
+        assert_eval("((lambda (f x) (funcall f x x)) '+ 1)", number(2));
     }
 
     #[test]
@@ -274,17 +283,16 @@ mod tests {
     #[test]
     fn test_eval_closure() {
         assert_eval(
-            "(let ((f (let ((x 1)) (lambda (y) (+ x y))))) (f 10))",
+            "(let ((f (let ((x 1)) (lambda (y) (+ x y))))) (funcall f 10))",
             number(11),
         );
-        assert_eval("((let ((x 1)) (lambda (y) (+ x y))) 10)", number(11));
     }
 
     #[test]
     #[should_panic(expected = "unbound variable: y")]
     fn test_eval_closure_uncaptured() {
         assert_eval(
-            "(let ((f (let ((x 1)) (lambda () (+ x y))))) (let ((y 10)) (f 10)))",
+            "(let ((f (let ((x 1)) (lambda () (+ x y))))) (let ((y 10)) (funcall f 10)))",
             number(11),
         );
     }
@@ -335,5 +343,10 @@ mod tests {
 ",
             number(3),
         );
+    }
+
+    #[test]
+    fn test_eval_funcall() {
+        assert_eval("(funcall 'cons 1 (list 2 3))", lisp::list(&[number(1), number(2), number(3)]));
     }
 }
