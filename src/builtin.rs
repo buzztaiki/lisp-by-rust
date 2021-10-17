@@ -2,9 +2,7 @@ use std::rc::Rc;
 
 use crate::env::Env;
 use crate::eval::{self, eval, eval_body, evlis};
-use crate::lisp::{
-    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
-};
+use crate::lisp::{self, BuiltinFn, Error, Expr, FunctionExpr, Result, SpecialFormFn, function, nil, number, symbol};
 
 fn cons(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     Ok(lisp::cons(
@@ -189,14 +187,8 @@ pub fn global_env() -> Env {
         ("list", list),
         ("car", car),
         ("cdr", cdr),
-        ("quote", quote),
         ("atom", atom),
         ("eq", eq),
-        ("cond", cond),
-        ("let", lisp_let),
-        ("lambda", lambda),
-        ("defun", defun),
-        ("defmacro", defmacro),
         ("+", add),
         ("-", sub),
         ("*", mul),
@@ -210,9 +202,22 @@ pub fn global_env() -> Env {
         ("funcall", funcall),
     ];
 
+    let spforms: Vec<(&str, SpecialFormFn)> = vec![
+        ("quote", quote),
+        ("cond", cond),
+        ("let", lisp_let),
+        ("defun", defun),
+        ("defmacro", defmacro),
+        ("lambda", lambda),
+    ];
+
+
     let mut env = eval::global_env();
     for (k, v) in builtins {
         env.insert_function(symbol(k), function(FunctionExpr::builtin(k, v)));
+    }
+    for (k, v) in spforms {
+        env.insert_function(symbol(k), function(FunctionExpr::special_form(k, v)));
     }
     env
 }
