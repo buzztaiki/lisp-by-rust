@@ -36,13 +36,11 @@ pub fn eval_body(env: &mut Env, body: &Expr) -> Result<Rc<Expr>> {
 
 pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
     match func {
-        Expr::Symbol(_) => {
-            match env.get_function(func) {
-                Some(x) => apply(env, &x, args),
-                None => Err(Error(format!("unbound function: {}", func)))
-            }
-        }
-        Expr::Cons(x, _) if x.to_string() == "lambda" =>  {
+        Expr::Symbol(_) => match env.get_function(func) {
+            Some(x) => apply(env, &x, args),
+            None => Err(Error(format!("unbound function: {}", func))),
+        },
+        Expr::Cons(x, _) if x.to_string() == "lambda" => {
             let func = eval(env, func)?;
             apply(env, &func, args)
         }

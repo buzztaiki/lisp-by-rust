@@ -347,6 +347,9 @@ mod tests {
 
     #[test]
     fn test_eval_funcall() {
-        assert_eval("(funcall 'cons 1 (list 2 3))", lisp::list(&[number(1), number(2), number(3)]));
+        assert_eval(
+            "(funcall 'cons 1 (list 2 3))",
+            lisp::list(&[number(1), number(2), number(3)]),
+        );
     }
 }
