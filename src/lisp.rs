@@ -20,26 +20,19 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum FunctionExpr {
-    Builtin(Builtin),
-    Function(Function),
-    MacroForm(MacroForm),
+    Builtin(BuiltinFunction),
+    SpecialForm(BuiltinFunction),
+    Function(CompoundFunction),
+    MacroForm(CompoundFunction),
 }
 
-pub struct Builtin {
+pub struct BuiltinFunction {
     name: String,
     func: BuiltinFn,
 }
 
 #[derive(Debug)]
-pub struct Function {
-    vars: Vec<(Rc<Expr>, Rc<Expr>)>,
-    name: String,
-    argnames: Rc<Expr>,
-    body: Rc<Expr>,
-}
-
-#[derive(Debug)]
-pub struct MacroForm {
+pub struct CompoundFunction {
     vars: Vec<(Rc<Expr>, Rc<Expr>)>,
     name: String,
     argnames: Rc<Expr>,
@@ -132,14 +125,21 @@ impl fmt::Display for Expr {
 
 impl FunctionExpr {
     pub fn builtin(name: &str, func: BuiltinFn) -> Rc<Self> {
-        Rc::new(Self::Builtin(Builtin {
+        Rc::new(Self::Builtin(BuiltinFunction {
+            name: name.to_string(),
+            func,
+        }))
+    }
+
+    pub fn special_form(name: &str, func: BuiltinFn) -> Rc<Self> {
+        Rc::new(Self::SpecialForm(BuiltinFunction {
             name: name.to_string(),
             func,
         }))
     }
 
     pub fn function(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::Function(Function {
+        Rc::new(Self::Function(CompoundFunction {
             vars: env.capture(),
             name: name.to_string(),
             argnames,
@@ -148,7 +148,7 @@ impl FunctionExpr {
     }
 
     pub fn macro_form(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::MacroForm(MacroForm {
+        Rc::new(Self::MacroForm(CompoundFunction {
             vars: env.capture(),
             name: name.to_string(),
             argnames,
@@ -159,6 +159,7 @@ impl FunctionExpr {
     pub fn name(&self) -> &str {
         match self {
             FunctionExpr::Builtin(x) => x.name.as_str(),
+            FunctionExpr::SpecialForm(x) => x.name.as_str(),
             FunctionExpr::Function(x) => x.name.as_str(),
             FunctionExpr::MacroForm(x) => x.name.as_str(),
         }
@@ -167,16 +168,9 @@ impl FunctionExpr {
     pub fn kind(&self) -> &str {
         match self {
             FunctionExpr::Builtin(_) => "builtin",
+            FunctionExpr::SpecialForm(_) => "special-form",
             FunctionExpr::Function(_) => "function",
             FunctionExpr::MacroForm(_) => "macro",
-        }
-    }
-
-    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        match self {
-            FunctionExpr::Builtin(x) => x.apply(env, args),
-            FunctionExpr::Function(x) => x.apply(env, args),
-            FunctionExpr::MacroForm(x) => x.apply(env, args),
         }
     }
 }
@@ -201,37 +195,24 @@ impl fmt::Display for FunctionExpr {
     }
 }
 
-impl Builtin {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+impl BuiltinFunction {
+    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         (self.func)(env, args)
     }
 }
 
-impl fmt::Debug for Builtin {
+impl fmt::Debug for BuiltinFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Builtin").field("name", &self.name).finish()
     }
 }
 
-impl Function {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let evargs = eval::evlis(env, args)?;
+impl CompoundFunction {
+    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         let scope = &mut env.enter_scope();
         scope.extend(self.vars.iter().cloned());
-        eval::bind_args(scope, &self.argnames, &evargs)?;
+        eval::bind_args(scope, &self.argnames, args)?;
         eval::eval_body(scope, &self.body)
-    }
-}
-
-impl MacroForm {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let new_body = {
-            let scope = &mut env.enter_scope();
-            scope.extend(self.vars.iter().cloned());
-            eval::bind_args(scope, &self.argnames, args)?;
-            eval::eval_body(scope, &self.body)?
-        };
-        eval::eval(env, &new_body)
     }
 }
 
