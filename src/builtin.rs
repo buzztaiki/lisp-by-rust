@@ -152,8 +152,8 @@ def_number_cmp!(gt, >);
 def_number_cmp!(le, <=);
 def_number_cmp!(ge, >=);
 
-fn prin1(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    let x = eval(env, &*args.car()?)?;
+fn prin1(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    let x = args.car()?;
     print!("{}", x);
     Ok(x)
 }
