@@ -1,26 +1,25 @@
 use std::rc::Rc;
 
 use crate::env::Env;
-use crate::eval::{self, eval, eval_body, evlis};
-use crate::lisp::{self, BuiltinFn, Error, Expr, FunctionExpr, Result, SpecialFormFn, function, nil, number, symbol};
+use crate::eval::{self, eval, eval_body};
+use crate::lisp::{
+    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
+};
 
-fn cons(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    Ok(lisp::cons(
-        eval(env, &*args.car()?)?,
-        eval(env, &*args.cadr()?)?,
-    ))
+fn cons(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    Ok(lisp::cons(args.car()?, args.cadr()?))
 }
 
-fn list(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    eval::evlis(env, args)
+fn list(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    Ok(lisp::cons(args.car()?, args.cdr()?))
 }
 
-fn car(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    eval(env, &*args.car()?)?.car()
+fn car(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    args.car()?.car()
 }
 
-fn cdr(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    eval(env, &*args.car()?)?.cdr()
+fn cdr(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    args.car()?.cdr()
 }
 
 fn quote(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -31,10 +30,8 @@ fn atom(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     Ok(Expr::from_bool(args.car()?.is_atom()))
 }
 
-fn eq(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    Ok(Expr::from_bool(
-        eval(env, &*args.car()?)?.lisp_eq(&*eval(env, &*args.cadr()?)?),
-    ))
+fn eq(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    Ok(Expr::from_bool(args.car()?.lisp_eq(&*args.cadr()?)))
 }
 
 fn cond(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -112,21 +109,14 @@ fn map_number(args: &Expr) -> impl Iterator<Item = Result<i64>> + '_ {
     })
 }
 
-fn number_op(
-    env: &mut Env,
-    args: &Expr,
-    f: impl Fn(i64, i64) -> i64,
-    init: i64,
-) -> Result<Rc<Expr>> {
-    let evargs = evlis(env, args)?;
-    let args = map_number(&evargs);
+fn number_op(args: &Expr, f: impl Fn(i64, i64) -> i64, init: i64) -> Result<Rc<Expr>> {
+    let args = map_number(args);
     let res = args.reduce(|a, b| a.and_then(|a| b.map(|b| f(a, b))));
     res.unwrap_or(Ok(init)).map(number)
 }
 
-fn number_cmp(env: &mut Env, args: &Expr, f: impl Fn(i64, i64) -> bool) -> Result<Rc<Expr>> {
-    let evargs = evlis(env, args)?;
-    let mut args = map_number(&evargs);
+fn number_cmp(args: &Expr, f: impl Fn(i64, i64) -> bool) -> Result<Rc<Expr>> {
+    let mut args = map_number(args);
     let x = args
         .next()
         .unwrap_or_else(|| Err(Error("wrong number of argument".to_string())));
@@ -138,16 +128,16 @@ fn number_cmp(env: &mut Env, args: &Expr, f: impl Fn(i64, i64) -> bool) -> Resul
 
 macro_rules! def_number_op {
     ($func_name:ident, $op:tt, $init:expr) => {
-        fn $func_name(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-            number_op(env, args, |a, b| a $op b, $init)
+        fn $func_name(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+            number_op(args, |a, b| a $op b, $init)
         }
     };
 }
 
 macro_rules! def_number_cmp {
     ($func_name:ident, $op:tt) => {
-        fn $func_name(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-            number_cmp(env, args, |a, b| a $op b)
+        fn $func_name(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+            number_cmp(args, |a, b| a $op b)
         }
     };
 }
@@ -174,11 +164,11 @@ fn terpri(_env: &mut Env, _args: &Expr) -> Result<Rc<Expr>> {
 }
 
 fn funcall(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-    let func = eval(env, &*args.car()?)?;
-    // let evargs = evlis(env, &*args.cdr()?)?;
-    // let qs = lisp::mapcar(|x| Ok(lisp::list(&[symbol("quote"), x])), &evargs)?;
-    // eval::apply(env, &func, &qs)
-    eval::apply(env, &func, &*args.cdr()?)
+    match eval::get_function(env, &*args.car()?)?.as_ref() {
+        FunctionExpr::Builtin(x) => x.apply(env, &*args.cdr()?),
+        FunctionExpr::Function(x) => x.apply(env, &*args.cdr()?),
+        f => Err(Error(format!("invalid function: {}", f))),
+    }
 }
 
 pub fn global_env() -> Env {
@@ -202,7 +192,7 @@ pub fn global_env() -> Env {
         ("funcall", funcall),
     ];
 
-    let spforms: Vec<(&str, SpecialFormFn)> = vec![
+    let spforms: Vec<(&str, BuiltinFn)> = vec![
         ("quote", quote),
         ("cond", cond),
         ("let", lisp_let),
@@ -210,7 +200,6 @@ pub fn global_env() -> Env {
         ("defmacro", defmacro),
         ("lambda", lambda),
     ];
-
 
     let mut env = eval::global_env();
     for (k, v) in builtins {

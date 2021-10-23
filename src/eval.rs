@@ -5,7 +5,21 @@ use crate::lisp::*;
 
 pub fn eval(env: &mut Env, x: &Expr) -> Result<Rc<Expr>> {
     match x {
-        Expr::Cons(car, cdr) => apply(env, car, cdr),
+        Expr::Cons(func, args) => match &*get_function(env, func)? {
+            FunctionExpr::Builtin(x) => {
+                let evargs = evlis(env, args)?;
+                x.apply(env, &evargs)
+            }
+            FunctionExpr::SpecialForm(x) => x.apply(env, args),
+            FunctionExpr::Function(x) => {
+                let evargs = evlis(env, args)?;
+                x.apply(env, &evargs)
+            }
+            FunctionExpr::MacroForm(x) => {
+                let body = x.apply(env, args)?;
+                eval(env, &body)
+            }
+        },
         Expr::Symbol(_) => env
             .get(x)
             .ok_or_else(|| Error(format!("unbound variable: {}", x))),
@@ -34,17 +48,17 @@ pub fn eval_body(env: &mut Env, body: &Expr) -> Result<Rc<Expr>> {
         .try_fold(nil(), |_, x| x.and_then(|x| eval(env, &x)))
 }
 
-pub fn apply(env: &mut Env, func: &Expr, args: &Expr) -> Result<Rc<Expr>> {
+pub fn get_function(env: &mut Env, func: &Expr) -> Result<Rc<FunctionExpr>> {
     match func {
         Expr::Symbol(_) => match env.get_function(func) {
-            Some(x) => apply(env, &x, args),
+            Some(x) => get_function(env, &x),
             None => Err(Error(format!("unbound function: {}", func))),
         },
         Expr::Cons(x, _) if x.to_string() == "lambda" => {
             let func = eval(env, func)?;
-            apply(env, &func, args)
+            get_function(env, &func)
         }
-        Expr::Function(function) => function.apply(env, args),
+        Expr::Function(x) => Ok(x.clone()),
         _ => Err(Error(format!("invalid function: {}", func))),
     }
 }

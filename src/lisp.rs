@@ -21,19 +21,14 @@ pub enum Expr {
 #[derive(Debug)]
 pub enum FunctionExpr {
     Builtin(Builtin),
-    SpecialForm(SpecialForm),
+    SpecialForm(Builtin),
     Function(Function),
-    MacroForm(MacroForm),
+    MacroForm(Function),
 }
 
 pub struct Builtin {
     name: String,
     func: BuiltinFn,
-}
-
-pub struct SpecialForm {
-    name: String,
-    func: SpecialFormFn,
 }
 
 #[derive(Debug)]
@@ -44,16 +39,7 @@ pub struct Function {
     body: Rc<Expr>,
 }
 
-#[derive(Debug)]
-pub struct MacroForm {
-    vars: Vec<(Rc<Expr>, Rc<Expr>)>,
-    name: String,
-    argnames: Rc<Expr>,
-    body: Rc<Expr>,
-}
-
 pub type BuiltinFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
-pub type SpecialFormFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
 
 impl Expr {
     pub fn car(&self) -> Result<Rc<Expr>> {
@@ -145,8 +131,8 @@ impl FunctionExpr {
         }))
     }
 
-    pub fn special_form(name: &str, func: SpecialFormFn) -> Rc<Self> {
-        Rc::new(Self::SpecialForm(SpecialForm {
+    pub fn special_form(name: &str, func: BuiltinFn) -> Rc<Self> {
+        Rc::new(Self::SpecialForm(Builtin {
             name: name.to_string(),
             func,
         }))
@@ -162,7 +148,7 @@ impl FunctionExpr {
     }
 
     pub fn macro_form(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::MacroForm(MacroForm {
+        Rc::new(Self::MacroForm(Function {
             vars: env.capture(),
             name: name.to_string(),
             argnames,
@@ -185,15 +171,6 @@ impl FunctionExpr {
             FunctionExpr::SpecialForm(_) => "special-form",
             FunctionExpr::Function(_) => "function",
             FunctionExpr::MacroForm(_) => "macro",
-        }
-    }
-
-    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        match self {
-            FunctionExpr::Builtin(x) => x.apply(env, args),
-            FunctionExpr::SpecialForm(x) => x.apply(env, args),
-            FunctionExpr::Function(x) => x.apply(env, args),
-            FunctionExpr::MacroForm(x) => x.apply(env, args),
         }
     }
 }
@@ -219,7 +196,7 @@ impl fmt::Display for FunctionExpr {
 }
 
 impl Builtin {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
+    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         (self.func)(env, args)
     }
 }
@@ -230,39 +207,12 @@ impl fmt::Debug for Builtin {
     }
 }
 
-impl SpecialForm {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        (self.func)(env, args)
-    }
-}
-
-impl fmt::Debug for SpecialForm {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SpecialForm")
-            .field("name", &self.name)
-            .finish()
-    }
-}
-
 impl Function {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let evargs = eval::evlis(env, args)?;
+    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         let scope = &mut env.enter_scope();
         scope.extend(self.vars.iter().cloned());
-        eval::bind_args(scope, &self.argnames, &evargs)?;
+        eval::bind_args(scope, &self.argnames, args)?;
         eval::eval_body(scope, &self.body)
-    }
-}
-
-impl MacroForm {
-    fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let new_body = {
-            let scope = &mut env.enter_scope();
-            scope.extend(self.vars.iter().cloned());
-            eval::bind_args(scope, &self.argnames, args)?;
-            eval::eval_body(scope, &self.body)?
-        };
-        eval::eval(env, &new_body)
     }
 }
 
