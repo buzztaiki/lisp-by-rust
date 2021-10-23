@@ -20,19 +20,19 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum FunctionExpr {
-    Builtin(Builtin),
-    SpecialForm(Builtin),
-    Function(Function),
-    MacroForm(Function),
+    Builtin(BuiltinFunction),
+    SpecialForm(BuiltinFunction),
+    Function(CompoundFunction),
+    MacroForm(CompoundFunction),
 }
 
-pub struct Builtin {
+pub struct BuiltinFunction {
     name: String,
     func: BuiltinFn,
 }
 
 #[derive(Debug)]
-pub struct Function {
+pub struct CompoundFunction {
     vars: Vec<(Rc<Expr>, Rc<Expr>)>,
     name: String,
     argnames: Rc<Expr>,
@@ -125,21 +125,21 @@ impl fmt::Display for Expr {
 
 impl FunctionExpr {
     pub fn builtin(name: &str, func: BuiltinFn) -> Rc<Self> {
-        Rc::new(Self::Builtin(Builtin {
+        Rc::new(Self::Builtin(BuiltinFunction {
             name: name.to_string(),
             func,
         }))
     }
 
     pub fn special_form(name: &str, func: BuiltinFn) -> Rc<Self> {
-        Rc::new(Self::SpecialForm(Builtin {
+        Rc::new(Self::SpecialForm(BuiltinFunction {
             name: name.to_string(),
             func,
         }))
     }
 
     pub fn function(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::Function(Function {
+        Rc::new(Self::Function(CompoundFunction {
             vars: env.capture(),
             name: name.to_string(),
             argnames,
@@ -148,7 +148,7 @@ impl FunctionExpr {
     }
 
     pub fn macro_form(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::MacroForm(Function {
+        Rc::new(Self::MacroForm(CompoundFunction {
             vars: env.capture(),
             name: name.to_string(),
             argnames,
@@ -195,19 +195,19 @@ impl fmt::Display for FunctionExpr {
     }
 }
 
-impl Builtin {
+impl BuiltinFunction {
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         (self.func)(env, args)
     }
 }
 
-impl fmt::Debug for Builtin {
+impl fmt::Debug for BuiltinFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Builtin").field("name", &self.name).finish()
     }
 }
 
-impl Function {
+impl CompoundFunction {
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         let scope = &mut env.enter_scope();
         scope.extend(self.vars.iter().cloned());
