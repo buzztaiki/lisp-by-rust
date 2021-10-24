@@ -20,10 +20,9 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum FunctionExpr {
-    Builtin(Function),
     SpecialForm(Function),
     Function(Function),
-    MacroForm(Function),
+    Macro(Function),
 }
 
 pub struct Function {
@@ -117,10 +116,6 @@ impl fmt::Display for Expr {
 }
 
 impl FunctionExpr {
-    pub fn builtin(f: Function) -> Rc<Self> {
-        Rc::new(Self::Builtin(f))
-    }
-
     pub fn special_form(f: Function) -> Rc<Self> {
         Rc::new(Self::SpecialForm(f))
     }
@@ -130,24 +125,22 @@ impl FunctionExpr {
     }
 
     pub fn macro_form(f: Function) -> Rc<Self> {
-        Rc::new(Self::MacroForm(f))
+        Rc::new(Self::Macro(f))
     }
 
     pub fn name(&self) -> &str {
         match self {
-            FunctionExpr::Builtin(x) => x.name.as_str(),
             FunctionExpr::SpecialForm(x) => x.name.as_str(),
             FunctionExpr::Function(x) => x.name.as_str(),
-            FunctionExpr::MacroForm(x) => x.name.as_str(),
+            FunctionExpr::Macro(x) => x.name.as_str(),
         }
     }
 
     pub fn kind(&self) -> &str {
         match self {
-            FunctionExpr::Builtin(_) => "builtin",
             FunctionExpr::SpecialForm(_) => "special-form",
             FunctionExpr::Function(_) => "function",
-            FunctionExpr::MacroForm(_) => "macro",
+            FunctionExpr::Macro(_) => "macro",
         }
     }
 }
@@ -348,8 +341,8 @@ mod tests {
             Ok(nil())
         }
         assert_eq!(
-            function(FunctionExpr::builtin(Function::new("moo", f))).to_string(),
-            "<builtin moo>"
+            function(FunctionExpr::special_form(Function::new("moo", f))).to_string(),
+            "<special-form moo>"
         );
         assert_eq!(
             function(FunctionExpr::function(Function::new("woo", f))).to_string(),

@@ -148,7 +148,6 @@ fn terpri(_env: &mut Env, _args: &Expr) -> Result<Rc<Expr>> {
 
 fn funcall(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     match eval::get_function(env, &*args.car()?)?.as_ref() {
-        FunctionExpr::Builtin(x) => x.apply(env, &*args.cdr()?),
         FunctionExpr::Function(x) => x.apply(env, &*args.cdr()?),
         f => Err(Error(format!("invalid function: {}", f))),
     }
@@ -188,7 +187,7 @@ pub fn global_env() -> Env {
 
     let mut env = eval::global_env();
     for (k, v) in builtins {
-        env.insert_function(symbol(k), function(FunctionExpr::builtin(Function::new(k, v))));
+        env.insert_function(symbol(k), function(FunctionExpr::function(Function::new(k, v))));
     }
     for (k, v) in spforms {
         env.insert_function(symbol(k), function(FunctionExpr::special_form(Function::new(k, v))));
