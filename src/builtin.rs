@@ -2,7 +2,9 @@ use std::rc::Rc;
 
 use crate::env::Env;
 use crate::eval::{self, eval, eval_body};
-use crate::lisp::{self, Function, Error, Expr, FunctionExpr, Result, function, nil, number, symbol};
+use crate::lisp::{
+    self, function, nil, number, symbol, Error, Expr, Function, FunctionExpr, Result,
+};
 
 fn cons(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     Ok(lisp::cons(args.car()?, args.cadr()?))
@@ -61,7 +63,12 @@ fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
-    let f = function(FunctionExpr::function(Function::compound(env, "lambda", args.car()?, args.cdr()?)));
+    let f = function(FunctionExpr::function(Function::compound(
+        env,
+        "lambda",
+        args.car()?,
+        args.cdr()?,
+    )));
     Ok(f)
 }
 
@@ -69,7 +76,12 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
     let name = args.car()?;
     let args = args.cdr()?;
-    let f = function(FunctionExpr::function(Function::compound(env, &name.to_string(), args.car()?, args.cdr()?)));
+    let f = function(FunctionExpr::function(Function::compound(
+        env,
+        &name.to_string(),
+        args.car()?,
+        args.cdr()?,
+    )));
     env.insert_function(name, f.clone());
     Ok(f)
 }
@@ -78,7 +90,12 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (defmacro f (x y) (cons x y))
     let name = args.car()?;
     let args = args.cdr()?;
-    let f = function(FunctionExpr::macro_form(Function::compound(env, &name.to_string(), args.car()?, args.cdr()?)));
+    let f = function(FunctionExpr::macro_form(Function::compound(
+        env,
+        &name.to_string(),
+        args.car()?,
+        args.cdr()?,
+    )));
     env.insert_function(name, f.clone());
     Ok(f)
 }
@@ -187,10 +204,16 @@ pub fn global_env() -> Env {
 
     let mut env = eval::global_env();
     for (k, v) in builtins {
-        env.insert_function(symbol(k), function(FunctionExpr::function(Function::new(k, v))));
+        env.insert_function(
+            symbol(k),
+            function(FunctionExpr::function(Function::new(k, v))),
+        );
     }
     for (k, v) in spforms {
-        env.insert_function(symbol(k), function(FunctionExpr::special_form(Function::new(k, v))));
+        env.insert_function(
+            symbol(k),
+            function(FunctionExpr::special_form(Function::new(k, v))),
+        );
     }
     env
 }

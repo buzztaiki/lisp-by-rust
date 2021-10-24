@@ -174,7 +174,7 @@ impl Function {
     }
 
     pub fn compound(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
-        let vars = env.capture(); 
+        let vars = env.capture();
         let f = move |env: &mut Env, args: &Expr| {
             let scope = &mut env.enter_scope();
             scope.extend(vars.iter().cloned());
