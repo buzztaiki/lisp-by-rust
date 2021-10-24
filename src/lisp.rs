@@ -28,7 +28,7 @@ pub enum FunctionExpr {
 
 pub struct BuiltinFunction {
     name: String,
-    func: BuiltinFn,
+    func: Box<dyn BuiltinFn>,
 }
 
 #[derive(Debug)]
@@ -39,7 +39,8 @@ pub struct CompoundFunction {
     body: Rc<Expr>,
 }
 
-pub type BuiltinFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
+pub trait BuiltinFn: Fn(&mut Env, &Expr) -> Result<Rc<Expr>> {}
+impl<F: Fn(&mut Env, &Expr) -> Result<Rc<Expr>>> BuiltinFn for F {}
 
 impl Expr {
     pub fn car(&self) -> Result<Rc<Expr>> {
@@ -124,17 +125,17 @@ impl fmt::Display for Expr {
 }
 
 impl FunctionExpr {
-    pub fn builtin(name: &str, func: BuiltinFn) -> Rc<Self> {
+    pub fn builtin(name: &str, func: impl BuiltinFn + 'static) -> Rc<Self> {
         Rc::new(Self::Builtin(BuiltinFunction {
             name: name.to_string(),
-            func,
+            func: Box::new(func),
         }))
     }
 
-    pub fn special_form(name: &str, func: BuiltinFn) -> Rc<Self> {
+    pub fn special_form(name: &str, func: impl BuiltinFn + 'static) -> Rc<Self> {
         Rc::new(Self::SpecialForm(BuiltinFunction {
             name: name.to_string(),
-            func,
+            func: Box::new(func),
         }))
     }
 

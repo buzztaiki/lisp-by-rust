@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::env::Env;
 use crate::eval::{self, eval, eval_body};
 use crate::lisp::{
-    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
+    self, function, nil, number, symbol, Error, Expr, FunctionExpr, Result,
 };
 
 fn cons(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -172,7 +172,9 @@ fn funcall(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 }
 
 pub fn global_env() -> Env {
-    let builtins: Vec<(&str, BuiltinFn)> = vec![
+    type F = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
+
+    let builtins: Vec<(&str, F)> = vec![
         ("cons", cons),
         ("list", list),
         ("car", car),
@@ -192,7 +194,7 @@ pub fn global_env() -> Env {
         ("funcall", funcall),
     ];
 
-    let spforms: Vec<(&str, BuiltinFn)> = vec![
+    let spforms: Vec<(&str, F)> = vec![
         ("quote", quote),
         ("cond", cond),
         ("let", lisp_let),
