@@ -191,7 +191,9 @@ impl Function {
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Function").field("name", &self.name).finish()
+        f.debug_struct("Function")
+            .field("name", &self.name)
+            .finish()
     }
 }
 
@@ -209,6 +211,12 @@ pub fn number(x: i64) -> Rc<Expr> {
 
 pub fn function(x: Rc<FunctionExpr>) -> Rc<Expr> {
     Rc::new(Expr::Function(x))
+}
+
+pub fn lambda(env: &Env, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Expr> {
+    function(FunctionExpr::function(Function::compound(
+        env, "lambda", argnames, body,
+    )))
 }
 
 pub const NIL: &str = "nil";

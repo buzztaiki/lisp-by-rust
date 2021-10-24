@@ -50,9 +50,9 @@ pub fn get_function(env: &mut Env, func: &Expr) -> Result<Rc<FunctionExpr>> {
             Some(x) => get_function(env, &x),
             None => Err(Error(format!("unbound function: {}", func))),
         },
-        Expr::Cons(x, _) if x.to_string() == "lambda" => {
-            let func = eval(env, func)?;
-            get_function(env, &func)
+        Expr::Cons(x, args) if x.to_string() == "lambda" => {
+            let f = lambda(env, args.car()?, args.cdr()?);
+            get_function(env, &f)
         }
         Expr::Function(x) => Ok(x.clone()),
         _ => Err(Error(format!("invalid function: {}", func))),

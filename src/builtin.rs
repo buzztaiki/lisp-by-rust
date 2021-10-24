@@ -63,13 +63,7 @@ fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
-    let f = function(FunctionExpr::function(Function::compound(
-        env,
-        "lambda",
-        args.car()?,
-        args.cdr()?,
-    )));
-    Ok(f)
+    Ok(lisp::lambda(env, args.car()?, args.cdr()?))
 }
 
 fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
