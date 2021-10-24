@@ -6,16 +6,12 @@ use crate::lisp::*;
 pub fn eval(env: &mut Env, x: &Expr) -> Result<Rc<Expr>> {
     match x {
         Expr::Cons(func, args) => match &*get_function(env, func)? {
-            FunctionExpr::Builtin(x) => {
-                let evargs = evlis(env, args)?;
-                x.apply(env, &evargs)
-            }
             FunctionExpr::SpecialForm(x) => x.apply(env, args),
             FunctionExpr::Function(x) => {
                 let evargs = evlis(env, args)?;
                 x.apply(env, &evargs)
             }
-            FunctionExpr::MacroForm(x) => {
+            FunctionExpr::Macro(x) => {
                 let body = x.apply(env, args)?;
                 eval(env, &body)
             }

@@ -20,26 +20,18 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum FunctionExpr {
-    Builtin(BuiltinFunction),
-    SpecialForm(BuiltinFunction),
-    Function(CompoundFunction),
-    MacroForm(CompoundFunction),
+    SpecialForm(Function),
+    Function(Function),
+    Macro(Function),
 }
 
-pub struct BuiltinFunction {
+pub struct Function {
     name: String,
-    func: BuiltinFn,
+    func: Box<dyn FunctionFn>,
 }
 
-#[derive(Debug)]
-pub struct CompoundFunction {
-    vars: Vec<(Rc<Expr>, Rc<Expr>)>,
-    name: String,
-    argnames: Rc<Expr>,
-    body: Rc<Expr>,
-}
-
-pub type BuiltinFn = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
+pub trait FunctionFn: Fn(&mut Env, &Expr) -> Result<Rc<Expr>> {}
+impl<F: Fn(&mut Env, &Expr) -> Result<Rc<Expr>>> FunctionFn for F {}
 
 impl Expr {
     pub fn car(&self) -> Result<Rc<Expr>> {
@@ -124,53 +116,31 @@ impl fmt::Display for Expr {
 }
 
 impl FunctionExpr {
-    pub fn builtin(name: &str, func: BuiltinFn) -> Rc<Self> {
-        Rc::new(Self::Builtin(BuiltinFunction {
-            name: name.to_string(),
-            func,
-        }))
+    pub fn special_form(f: Function) -> Rc<Self> {
+        Rc::new(Self::SpecialForm(f))
     }
 
-    pub fn special_form(name: &str, func: BuiltinFn) -> Rc<Self> {
-        Rc::new(Self::SpecialForm(BuiltinFunction {
-            name: name.to_string(),
-            func,
-        }))
+    pub fn function(f: Function) -> Rc<Self> {
+        Rc::new(Self::Function(f))
     }
 
-    pub fn function(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::Function(CompoundFunction {
-            vars: env.capture(),
-            name: name.to_string(),
-            argnames,
-            body,
-        }))
-    }
-
-    pub fn macro_form(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Rc<Self> {
-        Rc::new(Self::MacroForm(CompoundFunction {
-            vars: env.capture(),
-            name: name.to_string(),
-            argnames,
-            body,
-        }))
+    pub fn macro_form(f: Function) -> Rc<Self> {
+        Rc::new(Self::Macro(f))
     }
 
     pub fn name(&self) -> &str {
         match self {
-            FunctionExpr::Builtin(x) => x.name.as_str(),
             FunctionExpr::SpecialForm(x) => x.name.as_str(),
             FunctionExpr::Function(x) => x.name.as_str(),
-            FunctionExpr::MacroForm(x) => x.name.as_str(),
+            FunctionExpr::Macro(x) => x.name.as_str(),
         }
     }
 
     pub fn kind(&self) -> &str {
         match self {
-            FunctionExpr::Builtin(_) => "builtin",
             FunctionExpr::SpecialForm(_) => "special-form",
             FunctionExpr::Function(_) => "function",
-            FunctionExpr::MacroForm(_) => "macro",
+            FunctionExpr::Macro(_) => "macro",
         }
     }
 }
@@ -195,24 +165,33 @@ impl fmt::Display for FunctionExpr {
     }
 }
 
-impl BuiltinFunction {
+impl Function {
+    pub fn new(name: &str, func: impl FunctionFn + 'static) -> Self {
+        Self {
+            name: name.to_string(),
+            func: Box::new(func),
+        }
+    }
+
+    pub fn compound(env: &Env, name: &str, argnames: Rc<Expr>, body: Rc<Expr>) -> Self {
+        let vars = env.capture();
+        let f = move |env: &mut Env, args: &Expr| {
+            let scope = &mut env.enter_scope();
+            scope.extend(vars.iter().cloned());
+            eval::bind_args(scope, &argnames, args)?;
+            eval::eval_body(scope, &body)
+        };
+        Self::new(name, f)
+    }
+
     pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
         (self.func)(env, args)
     }
 }
 
-impl fmt::Debug for BuiltinFunction {
+impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Builtin").field("name", &self.name).finish()
-    }
-}
-
-impl CompoundFunction {
-    pub fn apply(&self, env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
-        let scope = &mut env.enter_scope();
-        scope.extend(self.vars.iter().cloned());
-        eval::bind_args(scope, &self.argnames, args)?;
-        eval::eval_body(scope, &self.body)
+        f.debug_struct("Function").field("name", &self.name).finish()
     }
 }
 
@@ -362,15 +341,15 @@ mod tests {
             Ok(nil())
         }
         assert_eq!(
-            function(FunctionExpr::builtin("moo", f)).to_string(),
-            "<builtin moo>"
+            function(FunctionExpr::special_form(Function::new("moo", f))).to_string(),
+            "<special-form moo>"
         );
         assert_eq!(
-            function(FunctionExpr::function(&Env::new(), "woo", nil(), nil())).to_string(),
+            function(FunctionExpr::function(Function::new("woo", f))).to_string(),
             "<function woo>"
         );
         assert_eq!(
-            function(FunctionExpr::macro_form(&Env::new(), "goo", nil(), nil())).to_string(),
+            function(FunctionExpr::macro_form(Function::new("goo", f))).to_string(),
             "<macro goo>"
         );
     }

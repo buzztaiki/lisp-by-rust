@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::env::Env;
 use crate::eval::{self, eval, eval_body};
 use crate::lisp::{
-    self, function, nil, number, symbol, BuiltinFn, Error, Expr, FunctionExpr, Result,
+    self, function, nil, number, symbol, Error, Expr, Function, FunctionExpr, Result,
 };
 
 fn cons(_env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
@@ -63,12 +63,12 @@ fn lisp_let(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
 
 fn lambda(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (lambda (x y) (cons x y))
-    let f = function(FunctionExpr::function(
+    let f = function(FunctionExpr::function(Function::compound(
         env,
         "lambda",
         args.car()?,
         args.cdr()?,
-    ));
+    )));
     Ok(f)
 }
 
@@ -76,12 +76,12 @@ fn defun(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (defun f (x y) (cons x y))
     let name = args.car()?;
     let args = args.cdr()?;
-    let f = function(FunctionExpr::function(
+    let f = function(FunctionExpr::function(Function::compound(
         env,
         &name.to_string(),
         args.car()?,
         args.cdr()?,
-    ));
+    )));
     env.insert_function(name, f.clone());
     Ok(f)
 }
@@ -90,12 +90,12 @@ fn defmacro(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     // (defmacro f (x y) (cons x y))
     let name = args.car()?;
     let args = args.cdr()?;
-    let f = function(FunctionExpr::macro_form(
+    let f = function(FunctionExpr::macro_form(Function::compound(
         env,
         &name.to_string(),
         args.car()?,
         args.cdr()?,
-    ));
+    )));
     env.insert_function(name, f.clone());
     Ok(f)
 }
@@ -165,14 +165,15 @@ fn terpri(_env: &mut Env, _args: &Expr) -> Result<Rc<Expr>> {
 
 fn funcall(env: &mut Env, args: &Expr) -> Result<Rc<Expr>> {
     match eval::get_function(env, &*args.car()?)?.as_ref() {
-        FunctionExpr::Builtin(x) => x.apply(env, &*args.cdr()?),
         FunctionExpr::Function(x) => x.apply(env, &*args.cdr()?),
         f => Err(Error(format!("invalid function: {}", f))),
     }
 }
 
 pub fn global_env() -> Env {
-    let builtins: Vec<(&str, BuiltinFn)> = vec![
+    type F = fn(&mut Env, &Expr) -> Result<Rc<Expr>>;
+
+    let builtins: Vec<(&str, F)> = vec![
         ("cons", cons),
         ("list", list),
         ("car", car),
@@ -192,7 +193,7 @@ pub fn global_env() -> Env {
         ("funcall", funcall),
     ];
 
-    let spforms: Vec<(&str, BuiltinFn)> = vec![
+    let spforms: Vec<(&str, F)> = vec![
         ("quote", quote),
         ("cond", cond),
         ("let", lisp_let),
@@ -203,10 +204,16 @@ pub fn global_env() -> Env {
 
     let mut env = eval::global_env();
     for (k, v) in builtins {
-        env.insert_function(symbol(k), function(FunctionExpr::builtin(k, v)));
+        env.insert_function(
+            symbol(k),
+            function(FunctionExpr::function(Function::new(k, v))),
+        );
     }
     for (k, v) in spforms {
-        env.insert_function(symbol(k), function(FunctionExpr::special_form(k, v)));
+        env.insert_function(
+            symbol(k),
+            function(FunctionExpr::special_form(Function::new(k, v))),
+        );
     }
     env
 }
